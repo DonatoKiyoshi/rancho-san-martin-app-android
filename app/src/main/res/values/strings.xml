@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Rancho San Martín</string>
+    <string name="file_provider_authority" translatable="false">com.rancho.gestion.fileprovider</string>
+    <string name="canal_alertas_nombre">Alertas de ganado</string>
+    <string name="canal_alertas_descripcion">Avisos de animales cerca de vencer su etapa de Acopio o Engorda</string>
+</resources>

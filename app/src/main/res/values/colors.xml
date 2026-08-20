@@ -1,0 +1,12 @@
+<resources>
+    <color name="rancho_background">#EEF1F3</color>
+    <color name="rancho_surface">#FFFFFF</color>
+    <color name="rancho_primary">#2C4A5E</color>
+    <color name="rancho_primary_variant">#1B3040</color>
+    <color name="rancho_secondary">#C9D3DC</color>
+    <color name="rancho_accent">#B5652A</color>
+    <color name="rancho_input_fill">#F3F5F6</color>
+    <color name="rancho_on_primary">#FFFFFF</color>
+    <color name="rancho_error">#B3261E</color>
+    <color name="splash_bg">#000000</color>
+</resources>

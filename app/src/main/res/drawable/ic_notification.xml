@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Icono monocromatico para la barra de notificaciones (AlertasWorker).
+    Reutiliza la misma silueta de arete de la marca; el sistema la muestra
+    siempre como silueta blanca solida, por lo que el color aqui no importa.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M48,32 L60,32 A8,8 0 0 1 68,40 L68,70 A8,8 0 0 1 60,78 L48,78 A8,8 0 0 1 40,70 L40,40 A8,8 0 0 1 48,32 Z M50,44 A4,4 0 1,0 58,44 A4,4 0 1,0 50,44 Z"/>
+</vector>

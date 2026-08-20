@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!--
+        Silueta de un arete de ganado (ear tag) con su perforacion: es el
+        elemento central de todo el sistema (Animal.arete es la llave
+        primaria de cada registro), por lo que sirve como marca de la app.
+        Geometria contenida dentro de la "zona segura" (~66dp centrales)
+        que exige el formato de icono adaptativo.
+    -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M48,32 L60,32 A8,8 0 0 1 68,40 L68,70 A8,8 0 0 1 60,78 L48,78 A8,8 0 0 1 40,70 L40,40 A8,8 0 0 1 48,32 Z M50,44 A4,4 0 1,0 58,44 A4,4 0 1,0 50,44 Z"/>
+</vector>
