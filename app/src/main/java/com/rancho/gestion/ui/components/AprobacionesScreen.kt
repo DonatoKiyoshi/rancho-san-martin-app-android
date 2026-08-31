@@ -1,6 +1,7 @@
 package com.rancho.gestion.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,7 +27,11 @@ import com.rancho.gestion.util.SessionManager
 import kotlinx.coroutines.launch
 
 @Composable
-fun AprobacionesScreen(container: AppContainer, onOpenDrawer: () -> Unit) {
+fun AprobacionesScreen(
+    container: AppContainer,
+    onOpenDrawer: () -> Unit,
+    onNavigateToDetalle: (String) -> Unit
+) {
     val scope = rememberCoroutineScope()
     val animalesPendientes by container.ganadoRepository.pendientesAprobacion().collectAsState(initial = emptyList())
     val muertesPendientes by container.ganadoRepository.mortalidadPendiente().collectAsState(initial = emptyList())
@@ -84,7 +89,8 @@ fun AprobacionesScreen(container: AppContainer, onOpenDrawer: () -> Unit) {
                 0 -> EntradasPendientes(
                     animales = animalesPendientes,
                     onAprobar = { itemParaAprobar = it },
-                    onRechazar = { itemParaRechazar = it }
+                    onRechazar = { itemParaRechazar = it },
+                    onClick = { onNavigateToDetalle(it.numeroArete) }
                 )
                 1 -> VentasPendientes(
                     ventas = ventasPendientes,
@@ -149,7 +155,8 @@ private data class TabItem(val title: String, val count: Int)
 private fun EntradasPendientes(
     animales: List<Animal>,
     onAprobar: (Animal) -> Unit,
-    onRechazar: (Animal) -> Unit
+    onRechazar: (Animal) -> Unit,
+    onClick: (Animal) -> Unit
 ) {
     if (animales.isEmpty()) {
         EmptyState(icon = Icons.Default.Check, title = "No hay entradas pendientes")
@@ -157,11 +164,11 @@ private fun EntradasPendientes(
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(animales, key = { it.numeroArete }) { animal ->
                 AprobacionCard(
-                    title = "Entrada: Arete ${animal.numeroArete}",
-                    subtitle = "Usuario: ${animal.idUsuarioRegistro}\n${animal.color} · ${animal.pesoEntrada.toInt()} kg",
+                    title = "Arete ${animal.numeroArete}",
+                    subtitle = "Proveedor: ${animal.proveedor}\nSexo: ${if(animal.sexo == Sexo.MACHO) "Macho" else "Hembra"}\nPeso: ${animal.pesoEntrada.toInt()} kg\nPrecio de Compra: ${animal.precioCompra}",
                     onAprobar = { onAprobar(animal) },
                     onRechazar = { onRechazar(animal) },
-                    fase = animal.fase
+                    onClick = { onClick(animal) }
                 )
             }
         }
@@ -219,10 +226,12 @@ private fun AprobacionCard(
     subtitle: String,
     onAprobar: () -> Unit,
     onRechazar: () -> Unit,
-    fase: FaseGanado? = null
+    onClick: (() -> Unit)? = null
 ) {
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().then(
+            if (onClick != null) Modifier.clickable { onClick() } else Modifier
+        ),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
@@ -233,13 +242,7 @@ private fun AprobacionCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, fontWeight = FontWeight.ExtraBold)
-                    if (fase != null) {
-                        Spacer(Modifier.width(8.dp))
-                        EtapaBadge(fase)
-                    }
-                }
+                Text(title, fontWeight = FontWeight.ExtraBold)
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {

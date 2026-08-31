@@ -30,6 +30,7 @@ import com.rancho.gestion.ui.components.BarcodeScannerScreen
 import com.rancho.gestion.ui.components.ConfirmDialog
 import com.rancho.gestion.ui.components.SuccessDialog
 import com.rancho.gestion.ui.components.InfoDialog
+import com.rancho.gestion.ui.components.ThousandsSeparatorVisualTransformation
 import com.rancho.gestion.ui.theme.RanchoPrimary
 import com.rancho.gestion.ui.theme.RanchoTextSecondary
 import com.rancho.gestion.util.SessionManager
@@ -88,7 +89,7 @@ fun VentaIndividualContent(
         ) {
             BarcodeScannerScreen(
                 onResult = { result ->
-                    scannedArete = result
+                    scannedArete = result.filter { it.isDigit() }.take(15)
                     mostrarScanner = false
                 },
                 onBack = { mostrarScanner = false }
@@ -145,17 +146,30 @@ private fun VentaIndividualStatelessContent(
         }
     }
 
-    Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(20.dp)
+            .imePadding()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.Top
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
                 value = arete,
-                onValueChange = { arete = it; error = null },
+                onValueChange = {
+                    if (it.all { c -> c.isDigit() } && it.length <= 15) {
+                        arete = it
+                        error = null
+                    }
+                },
                 label = { Text("Arete") },
                 singleLine = true,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
             Spacer(Modifier.width(8.dp))
             Button(
@@ -175,7 +189,15 @@ private fun VentaIndividualStatelessContent(
         Spacer(Modifier.height(14.dp))
         OutlinedTextField(
             value = comprador,
-            onValueChange = { comprador = it },
+            onValueChange = {
+                if (it.length <= 50) {
+                    val allowedChars = Regex("[a-zA-Z0-9 ñÑáéíóúÁÉÍÓÚ\\-_]*")
+                    if (allowedChars.matches(it)) {
+                        comprador = it
+                        error = null
+                    }
+                }
+            },
             label = { Text("Comprador") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
@@ -183,19 +205,45 @@ private fun VentaIndividualStatelessContent(
         Spacer(Modifier.height(14.dp))
         OutlinedTextField(
             value = peso,
-            onValueChange = { peso = it.filter { c -> c.isDigit() || c == '.' } },
-            label = { Text("Peso") },
+            onValueChange = { input ->
+                val filtered = input.filter { it.isDigit() || it == '.' }
+                if (filtered.count { it == '.' } <= 1) {
+                    val parts = filtered.split('.')
+                    val isDeleting = filtered.length < peso.length
+                    if (isDeleting || parts[0].length <= 4) {
+                        if (parts.size < 2 || parts[1].length <= 2) {
+                            peso = filtered
+                            error = null
+                        }
+                    }
+                }
+            },
+            label = { Text("Peso (kg)") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            visualTransformation = ThousandsSeparatorVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(14.dp))
         OutlinedTextField(
             value = precio,
-            onValueChange = { precio = it.filter { c -> c.isDigit() || c == '.' } },
+            onValueChange = { input ->
+                val filtered = input.filter { it.isDigit() || it == '.' }
+                if (filtered.count { it == '.' } <= 1) {
+                    val parts = filtered.split('.')
+                    val isDeleting = filtered.length < precio.length
+                    if (isDeleting || parts[0].length <= 6) {
+                        if (parts.size < 2 || parts[1].length <= 2) {
+                            precio = filtered
+                            error = null
+                        }
+                    }
+                }
+            },
             label = { Text("Monto a Cobrar ($)") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            visualTransformation = ThousandsSeparatorVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -228,10 +276,10 @@ private fun VentaIndividualStatelessContent(
                 val pesoD = peso.toDoubleOrNull()
                 val precioD = precio.toDoubleOrNull()
                 when {
-                    areteTrim.isBlank() -> error = "El arete es obligatorio"
+                    areteTrim.length != 15 -> error = "El arete debe tener exactamente 15 dígitos"
                     compradorTrim.isBlank() -> error = "El comprador es obligatorio"
-                    pesoD == null || pesoD <= 0 -> error = "Ingresa un peso válido"
-                    precioD == null || precioD <= 0 -> error = "Ingresa un precio válido"
+                    pesoD == null || pesoD < 40 || pesoD > 1000 -> error = "El peso debe estar entre 40kg y 1,000kg"
+                    precioD == null || precioD < 500 || precioD > 100000 -> error = "El monto debe estar entre $500 y $100,000"
                     else -> {
                         guardando = true
                         scope.launch {

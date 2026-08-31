@@ -16,6 +16,7 @@ import com.rancho.gestion.ui.components.AppDrawerContent
 import com.rancho.gestion.ui.configuracion.ConfiguracionScreen
  import com.rancho.gestion.ui.configuracion.UsuariosScreen
 import com.rancho.gestion.ui.ganado.DetalleAnimalScreen
+import com.rancho.gestion.ui.ganado.DetalleAprobacionAnimalScreen
 import com.rancho.gestion.ui.finanzas.FinanzasScreen
 import com.rancho.gestion.ui.ganado.GanadoListScreen
 import com.rancho.gestion.ui.ganado.RegistrarAnimalScreen
@@ -174,10 +175,25 @@ fun RanchoNavHost(container: AppContainer) {
                 if (isAdmin) {
                     com.rancho.gestion.ui.components.AprobacionesScreen(
                         container = container,
-                        onOpenDrawer = { scope.launch { drawerState.open() } }
+                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                        onNavigateToDetalle = { arete ->
+                            navController.navigate(Screen.DetalleAprobacionAnimal.createRoute(arete))
+                        }
                     )
                 } else if (usuario != null) {
                     LaunchedEffect(Unit) { goTo(Screen.Ganado.route) }
+                }
+            }
+            composable(Screen.DetalleAprobacionAnimal.route) { backStackEntry ->
+                val arete = backStackEntry.arguments?.getString("arete")
+                if (arete != null && isAdmin) {
+                    DetalleAprobacionAnimalScreen(
+                        container = container,
+                        arete = arete,
+                        onBack = { navController.popBackStack() }
+                    )
+                } else {
+                    LaunchedEffect(Unit) { goTo(Screen.Aprobaciones.route) }
                 }
             }
             composable(Screen.Usuarios.route) {

@@ -36,9 +36,16 @@ class AuthRepository(private val usuarioDao: UsuarioDao) {
 
     fun getUsuarios(): Flow<List<Usuario>> = usuarioDao.getAll()
 
+    suspend fun getUsuarioById(id: Long): Usuario? = usuarioDao.getById(id)
+
     suspend fun registrarUsuario(usuario: Usuario) {
-        usuarioDao.insert(usuario.copy(passwordHash = PasswordHasher.hash(usuario.passwordHash)))
+        usuarioDao.insert(usuario.copy(
+            nombreUsuario = usuario.nombreUsuario.trim().lowercase(),
+            passwordHash = PasswordHasher.hash(usuario.passwordHash)
+        ))
     }
+
+    suspend fun existeUsuario(username: String): Boolean = usuarioDao.getByUsername(username.trim().lowercase()) != null
 
     suspend fun actualizarUsuario(usuario: Usuario, passwordNueva: String?) {
         val hash = if (!passwordNueva.isNullOrBlank()) PasswordHasher.hash(passwordNueva) else usuario.passwordHash
@@ -50,9 +57,9 @@ class AuthRepository(private val usuarioDao: UsuarioDao) {
     }
 
     suspend fun asegurarAdmin() {
-        android.util.Log.d("AuthRepository", "Ejecutando asegurarAdmin() para verificar cuentas por defecto...")
-        // 1. Limpieza de posibles duplicados accidentales de 'admin'
-        // (En entornos de desarrollo sin índices únicos pueden ocurrir)
+        android.util.Log.d("AuthRepository", "Ejecutando asegurarAdmin() para verificar cuenta de administrador...")
+        val nuevaContrasenaDefault = "RanchoSanMartin_a5rCNc!Q"
+        
         val todosLosUsuarios = usuarioDao.getAllOnce()
         val admins = todosLosUsuarios.filter { it.nombreUsuario.trim().lowercase() == "admin" }
         
@@ -60,17 +67,17 @@ class AuthRepository(private val usuarioDao: UsuarioDao) {
             usuarioDao.insert(Usuario(
                 nombre = "Administrador",
                 nombreUsuario = "admin",
-                passwordHash = PasswordHasher.hash("admin123"),
+                passwordHash = PasswordHasher.hash(nuevaContrasenaDefault),
                 rol = com.rancho.gestion.data.entities.Rol.ADMINISTRADOR
             ))
         } else {
-            // Si ya existe uno o más, nos aseguramos de que el primero sea válido y tenga admin123
+            // Si ya existe, nos aseguramos de que tenga la contraseña correcta
             val adminPrincipal = admins.first()
-            if (!PasswordHasher.matches("admin123", adminPrincipal.passwordHash)) {
+            if (!PasswordHasher.matches(nuevaContrasenaDefault, adminPrincipal.passwordHash)) {
                 usuarioDao.update(adminPrincipal.copy(
                     nombre = "Administrador",
                     nombreUsuario = "admin",
-                    passwordHash = PasswordHasher.hash("admin123"),
+                    passwordHash = PasswordHasher.hash(nuevaContrasenaDefault),
                     rol = com.rancho.gestion.data.entities.Rol.ADMINISTRADOR
                 ))
             }
@@ -80,25 +87,10 @@ class AuthRepository(private val usuarioDao: UsuarioDao) {
             }
         }
 
-        // 2. Asegurar usuario EMPLEADO (para pruebas del sistema)
+        // Ya no aseguramos el usuario EMPLEADO por defecto (RF-FIX)
         val empleados = todosLosUsuarios.filter { it.nombreUsuario.trim().lowercase() == "empleado" }
-        if (empleados.isEmpty()) {
-            usuarioDao.insert(Usuario(
-                nombre = "Empleado de Prueba",
-                nombreUsuario = "empleado",
-                passwordHash = PasswordHasher.hash("empleado123"),
-                rol = com.rancho.gestion.data.entities.Rol.EMPLEADO
-            ))
-        } else {
-            val empPrincipal = empleados.first()
-            if (!PasswordHasher.matches("empleado123", empPrincipal.passwordHash)) {
-                usuarioDao.update(empPrincipal.copy(
-                    passwordHash = PasswordHasher.hash("empleado123")
-                ))
-            }
-            if (empleados.size > 1) {
-                empleados.drop(1).forEach { usuarioDao.delete(it) }
-            }
+        if (empleados.isNotEmpty()) {
+            empleados.forEach { usuarioDao.delete(it) }
         }
     }
 }

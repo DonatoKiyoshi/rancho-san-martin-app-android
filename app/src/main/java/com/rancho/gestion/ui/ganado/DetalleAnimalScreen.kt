@@ -32,6 +32,7 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -44,6 +45,7 @@ import com.rancho.gestion.data.entities.*
 import com.rancho.gestion.ui.components.BackTopBar
 import com.rancho.gestion.ui.components.ConfirmDialog
 import com.rancho.gestion.ui.components.SectionCard
+import com.rancho.gestion.ui.components.ThousandsSeparatorVisualTransformation
 import com.rancho.gestion.ui.theme.*
 import com.rancho.gestion.util.DateUtils
 import com.rancho.gestion.util.ImageOptimizer
@@ -74,8 +76,6 @@ fun DetalleAnimalScreen(
             CircularProgressIndicator()
         }
     } else {
-        val isArchived = animal.estadoInventario != EstadoInventario.ACTIVO
-        
         // Cargar datos extra para archivados
         val ventaExtraState = produceState<Pair<Venta, DetalleVenta>?>(initialValue = null, animal) {
             if (animal.estadoInventario == EstadoInventario.VENDIDO) {
@@ -92,496 +92,600 @@ fun DetalleAnimalScreen(
         val muerteExtra = muerteExtraState.value
 
         var fotoUriStr by remember { mutableStateOf(animal.fotografiaLocal) }
-        var sexo by remember { mutableStateOf(animal.sexo) }
+        var pendingUriStr by remember { mutableStateOf<String?>(null) }
         
-        // Formateador de millares
-        val formatter = remember { java.text.DecimalFormat("#,###.##") }
-        
-        var peso by remember { mutableStateOf(formatter.format(animal.pesoEntrada)) }
-        var precio by remember { mutableStateOf(formatter.format(animal.precioCompra)) }
-        var proveedor by remember { mutableStateOf(animal.proveedor) }
-        var fase by remember { mutableStateOf(animal.fase) }
-        var color by remember { mutableStateOf(animal.color) }
-
-        // Campos extra para VENTA
-        var pesoVenta by remember { mutableStateOf("") }
-        var precioVenta by remember { mutableStateOf("") }
-        var comprador by remember { mutableStateOf("") }
-        
-        // Campos extra para MUERTE
-        var mermaEconomica by remember { mutableStateOf("") }
-
-        // Inicializar campos extra cuando carguen los datos
-        LaunchedEffect(ventaExtra) {
-            ventaExtra?.let { (v, d) ->
-                pesoVenta = d.pesoSalida.toString()
-                precioVenta = d.subtotal.toString()
-                comprador = v.comprador
-            }
-        }
-        LaunchedEffect(muerteExtra) {
-            muerteExtra?.let { m ->
-                mermaEconomica = m.mermaEconomica.toString()
+        val lanzadorCamara = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { exitoso ->
+            if (exitoso && pendingUriStr != null) {
+                scope.launch {
+                    val optimizedPath = withContext(Dispatchers.IO) {
+                        ImageOptimizer.optimize(context, pendingUriStr!!.toUri())
+                    }
+                    container.ganadoRepository.actualizarFoto(animal.numeroArete, optimizedPath)
+                    fotoUriStr = optimizedPath
+                }
             }
         }
 
-        var confirmacionGuardar by remember { mutableStateOf(false) }
-        var confirmacionEliminar by remember { mutableStateOf(false) }
-        var mensajeSinCambios by remember { mutableStateOf(false) }
-        var errorValidacion by remember { mutableStateOf<String?>(null) }
-        var fotoFullScreen by remember { mutableStateOf(false) }
+        val lanzadorPermisoCamara = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { concedido ->
+            if (concedido) {
+                try {
+                    val uri = crearUriParaFoto(context)
+                    pendingUriStr = uri.toString()
+                    lanzadorCamara.launch(uri)
+                } catch (e: Exception) { /* ignore */ }
+            }
+        }
 
-        Scaffold(
-            topBar = { BackTopBar(title = "Detalle de Animal", onBack = onBack) }
-        ) { padding ->
-            Column(
+        fun abrirCamara() {
+            val yaConcedido = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED
+            if (yaConcedido) {
+                try {
+                    val uri = crearUriParaFoto(context)
+                    pendingUriStr = uri.toString()
+                    lanzadorCamara.launch(uri)
+                } catch (e: Exception) { /* ignore */ }
+            } else {
+                lanzadorPermisoCamara.launch(Manifest.permission.CAMERA)
+            }
+        }
+
+        DetalleAnimalContent(
+            animal = animal,
+            ventaExtra = ventaExtra,
+            muerteExtra = muerteExtra,
+            fotoUriStr = fotoUriStr,
+            onBack = onBack,
+            onSaveAnimal = { updated ->
+                scope.launch {
+                    container.ganadoRepository.editarAnimal(updated, esAdmin = true)
+                    onBack()
+                }
+            },
+            onSaveVenta = { v, d ->
+                scope.launch {
+                    container.ventaRepository.actualizarVentaArchivada(v, d)
+                    onBack()
+                }
+            },
+            onSaveMuerte = { m ->
+                scope.launch {
+                    container.ganadoRepository.actualizarMortalidad(m)
+                    onBack()
+                }
+            },
+            onDelete = {
+                scope.launch {
+                    container.ganadoRepository.eliminarAnimal(animal)
+                    onBack()
+                }
+            },
+            abrirCamara = { abrirCamara() }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DetalleAnimalContent(
+    animal: Animal,
+    ventaExtra: Pair<Venta, DetalleVenta>?,
+    muerteExtra: Mortalidad?,
+    fotoUriStr: String?,
+    onBack: () -> Unit,
+    onSaveAnimal: (Animal) -> Unit,
+    onSaveVenta: (Venta, DetalleVenta) -> Unit,
+    onSaveMuerte: (Mortalidad) -> Unit,
+    onDelete: () -> Unit,
+    abrirCamara: () -> Unit
+) {
+    val isArchived = animal.estadoInventario != EstadoInventario.ACTIVO
+
+    var sexo by remember { mutableStateOf(animal.sexo) }
+    var peso by remember { mutableStateOf(animal.pesoEntrada.toString()) }
+    var precio by remember { mutableStateOf(animal.precioCompra.toString()) }
+    var proveedor by remember { mutableStateOf(animal.proveedor) }
+    var fase by remember { mutableStateOf(animal.fase) }
+    var color by remember { mutableStateOf(animal.color) }
+
+    // Campos extra para VENTA
+    var pesoVenta by remember { mutableStateOf("") }
+    var precioVenta by remember { mutableStateOf("") }
+    var comprador by remember { mutableStateOf("") }
+    
+    // Campos extra para MUERTE
+    var mermaEconomica by remember { mutableStateOf("") }
+
+    // Inicializar campos extra cuando carguen los datos
+    LaunchedEffect(ventaExtra) {
+        ventaExtra?.let { (v, d) ->
+            pesoVenta = d.pesoSalida.toString()
+            precioVenta = d.subtotal.toString()
+            comprador = v.comprador
+        }
+    }
+    LaunchedEffect(muerteExtra) {
+        muerteExtra?.let { m ->
+            mermaEconomica = m.mermaEconomica.toString()
+        }
+    }
+
+    var confirmacionGuardar by remember { mutableStateOf(false) }
+    var confirmacionEliminar by remember { mutableStateOf(false) }
+    var mensajeSinCambios by remember { mutableStateOf(false) }
+    var errorValidacion by remember { mutableStateOf<String?>(null) }
+    var fotoFullScreen by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = { BackTopBar(title = "Detalle de Animal", onBack = onBack) }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Fotografía
+            Box(
                 modifier = Modifier
-                    .padding(padding)
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .size(160.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { if (fotoUriStr != null) fotoFullScreen = true },
+                contentAlignment = Alignment.Center
             ) {
-                // Fotografía (No editable en esta pantalla según nueva regla)
-                Box(
-                    modifier = Modifier
-                        .size(160.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable { if (fotoUriStr != null) fotoFullScreen = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (fotoUriStr != null) {
-                        AsyncImage(
-                            model = fotoUriStr,
-                            contentDescription = "Foto del animal",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                        Box(
-                            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Fullscreen, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(32.dp))
-                        }
-                    } else {
-                        Icon(
-                            imageVector = ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder),
-                            contentDescription = null,
-                            modifier = Modifier.size(80.dp),
-                            tint = RanchoTextSecondary.copy(alpha = 0.2f)
-                        )
+                if (fotoUriStr != null) {
+                    AsyncImage(
+                        model = fotoUriStr,
+                        contentDescription = "Foto del animal",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Fullscreen, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(32.dp))
                     }
+                } else {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder),
+                        contentDescription = null,
+                        modifier = Modifier.size(80.dp),
+                        tint = RanchoTextSecondary.copy(alpha = 0.2f)
+                    )
                 }
+            }
 
-                Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
 
-                SectionCard {
-                    Text("Información General", fontWeight = FontWeight.Bold, color = RanchoPrimary)
-                    Spacer(Modifier.height(16.dp))
-
-                    DetailItem("Número de Arete", animal.numeroArete)
-                    DetailItem("Estado", if (isArchived) "ARCHIVADO (${animal.estadoInventario.name})" else animal.estadoInventario.name)
-                    
-                    if (isArchived) {
-                        val motivo = when {
-                            animal.estadoInventario == EstadoInventario.MUERTO -> "Muerte"
-                            animal.tipoBaja == TipoBaja.VENTA -> {
-                                if (ventaExtra?.first?.modalidad == ModalidadVenta.JAULA) "Venta por Jaula" else "Venta Individual"
-                            }
-                            else -> "Baja de sistema"
-                        }
-                        DetailItem("Motivo de Baja", motivo)
-                        DetailItem("Fecha de Baja", DateUtils.formatDay(animal.fechaBaja ?: 0L))
-                    }
-
-                    DetailItem("Fecha de Entrada", DateUtils.formatDay(animal.fechaEntrada))
-                    
-                    val dias = ((System.currentTimeMillis() - animal.fechaEntrada) / (1000 * 60 * 60 * 24)).coerceAtLeast(0)
-                    DetailItem("Días de Estancia", "$dias días")
-                }
-
+            SectionCard {
+                Text("Información General", fontWeight = FontWeight.Bold, color = RanchoPrimary)
                 Spacer(Modifier.height(16.dp))
 
-                SectionCard {
-                    Text(if (isArchived) "Datos de Origen" else "Datos Editables", fontWeight = FontWeight.Bold, color = RanchoPrimary)
-                    Spacer(Modifier.height(16.dp))
-
-                    if (!isArchived) {
-                        // Sexo (Editable - Dropdown)
-                        var sexoMenuAbierto by remember { mutableStateOf(false) }
-                        ExposedDropdownMenuBox(expanded = sexoMenuAbierto, onExpandedChange = { sexoMenuAbierto = it }) {
-                            OutlinedTextField(
-                                value = if (sexo == Sexo.MACHO) "Macho" else "Hembra",
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Sexo") },
-                                modifier = Modifier.fillMaxWidth().menuAnchor(),
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sexoMenuAbierto) }
-                            )
-                            ExposedDropdownMenu(expanded = sexoMenuAbierto, onDismissRequest = { sexoMenuAbierto = false }) {
-                                DropdownMenuItem(text = { Text("Macho") }, onClick = { sexo = Sexo.MACHO; sexoMenuAbierto = false })
-                                DropdownMenuItem(text = { Text("Hembra") }, onClick = { sexo = Sexo.HEMBRA; sexoMenuAbierto = false })
-                            }
+                DetailItem("Tipo de Arete", if (animal.tipoArete == TipoArete.SADER) "SADER" else "OTRO")
+                DetailItem("Número de Arete", animal.numeroArete)
+                DetailItem("Estado", if (isArchived) "ARCHIVADO (${animal.estadoInventario.name})" else animal.estadoInventario.name)
+                
+                if (isArchived) {
+                    val motivo = when {
+                        animal.estadoInventario == EstadoInventario.MUERTO -> "Muerte"
+                        animal.tipoBaja == TipoBaja.VENTA -> {
+                            if (ventaExtra?.first?.modalidad == ModalidadVenta.JAULA) "Venta por Jaula" else "Venta Individual"
                         }
+                        else -> "Baja de sistema"
+                    }
+                    DetailItem("Motivo de Baja", motivo)
+                    DetailItem("Fecha de Baja", DateUtils.formatDay(animal.fechaBaja ?: 0L))
+                }
 
-                        Spacer(Modifier.height(12.dp))
+                DetailItem("Fecha de Entrada", DateUtils.formatDay(animal.fechaEntrada))
+                
+                val dias = ((System.currentTimeMillis() - animal.fechaEntrada) / (1000 * 60 * 60 * 24)).coerceAtLeast(0)
+                DetailItem("Días de Estancia", "$dias días")
+            }
 
-                        // Color (Editable - Dropdown)
-                        var colorMenuAbierto by remember { mutableStateOf(false) }
-                        val opcionesColor = listOf("Negro", "Hosco", "Ballo", "Blanco", "Careto", "Sardo")
-                        ExposedDropdownMenuBox(expanded = colorMenuAbierto, onExpandedChange = { colorMenuAbierto = it }) {
-                            OutlinedTextField(
-                                value = color,
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Color") },
-                                modifier = Modifier.fillMaxWidth().menuAnchor(),
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = colorMenuAbierto) }
-                            )
-                            ExposedDropdownMenu(expanded = colorMenuAbierto, onDismissRequest = { colorMenuAbierto = false }) {
-                                opcionesColor.forEach { opt ->
-                                    DropdownMenuItem(text = { Text(opt) }, onClick = { color = opt; colorMenuAbierto = false })
-                                }
-                            }
-                        }
-                        
-                        Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
+            SectionCard {
+                Text(if (isArchived) "Datos de Origen" else "Datos Editables", fontWeight = FontWeight.Bold, color = RanchoPrimary)
+                Spacer(Modifier.height(16.dp))
+
+                if (!isArchived) {
+                    // Sexo (Editable - Dropdown)
+                    var sexoMenuAbierto by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(expanded = sexoMenuAbierto, onExpandedChange = { sexoMenuAbierto = it }) {
                         OutlinedTextField(
-                            value = peso,
-                            onValueChange = { input ->
-                                val filtered = input.filter { it.isDigit() || it == '.' }
-                                if (filtered.count { it == '.' } <= 1) {
-                                    val parts = filtered.split('.')
-                                    if ((parts.size < 2 || parts[1].length <= 2) && parts[0].length <= 4) {
+                            value = if (sexo == Sexo.MACHO) "Macho" else "Hembra",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Sexo") },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sexoMenuAbierto) }
+                        )
+                        ExposedDropdownMenu(expanded = sexoMenuAbierto, onDismissRequest = { sexoMenuAbierto = false }) {
+                            DropdownMenuItem(text = { Text("Macho") }, onClick = { sexo = Sexo.MACHO; sexoMenuAbierto = false })
+                            DropdownMenuItem(text = { Text("Hembra") }, onClick = { sexo = Sexo.HEMBRA; sexoMenuAbierto = false })
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Color (Editable - Dropdown)
+                    var colorMenuAbierto by remember { mutableStateOf(false) }
+                    val opcionesColor = listOf("Negro", "Hosco", "Ballo", "Blanco", "Careto", "Sardo")
+                    ExposedDropdownMenuBox(expanded = colorMenuAbierto, onExpandedChange = { colorMenuAbierto = it }) {
+                        OutlinedTextField(
+                            value = color,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Color") },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = colorMenuAbierto) }
+                        )
+                        ExposedDropdownMenu(expanded = colorMenuAbierto, onDismissRequest = { colorMenuAbierto = false }) {
+                            opcionesColor.forEach { opt ->
+                                DropdownMenuItem(text = { Text(opt) }, onClick = { color = opt; colorMenuAbierto = false })
+                            }
+                        }
+                    }
+                    
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = peso,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            if (filtered.count { it == '.' } <= 1) {
+                                val parts = filtered.split('.')
+                                val isDeleting = filtered.length < peso.length
+                                if (isDeleting || parts[0].length <= 4) {
+                                    if (parts.size < 2 || parts[1].length <= 2) {
                                         peso = filtered
                                         errorValidacion = null
                                     }
                                 }
-                            },
-                            label = { Text("Peso (kg)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                        )
+                            }
+                        },
+                        label = { Text("Peso (kg)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        visualTransformation = ThousandsSeparatorVisualTransformation()
+                    )
 
-                        Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
 
-                        OutlinedTextField(
-                            value = precio,
-                            onValueChange = { input ->
-                                val filtered = input.filter { it.isDigit() || it == '.' }
-                                if (filtered.count { it == '.' } <= 1) {
-                                    val parts = filtered.split('.')
-                                    if ((parts.size < 2 || parts[1].length <= 2) && parts[0].length <= 6) {
+                    OutlinedTextField(
+                        value = precio,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() || it == '.' }
+                            if (filtered.count { it == '.' } <= 1) {
+                                val parts = filtered.split('.')
+                                val isDeleting = filtered.length < precio.length
+                                if (isDeleting || parts[0].length <= 6) {
+                                    if (parts.size < 2 || parts[1].length <= 2) {
                                         precio = filtered
                                         errorValidacion = null
                                     }
                                 }
-                            },
-                            label = { Text("Precio de Compra ($)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                        )
-
-                        Spacer(Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            value = proveedor,
-                            onValueChange = { input ->
-                                val filtered = input.filter { it.isLetter() || it.isWhitespace() || it == 'ñ' || it == 'Ñ' || "áéíóúÁÉÍÓÚ".contains(it) }
-                                if (filtered.length <= 30) {
-                                    proveedor = filtered
-                                    errorValidacion = null
-                                }
-                            },
-                            label = { Text("Proveedor") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-
-                        Spacer(Modifier.height(12.dp))
-
-                        // Fase (Editable - Dropdown)
-                        var faseMenuAbierto by remember { mutableStateOf(false) }
-                        ExposedDropdownMenuBox(expanded = faseMenuAbierto, onExpandedChange = { faseMenuAbierto = it }) {
-                            OutlinedTextField(
-                                value = if (fase == FaseGanado.ACOPIO) "Acopio" else "Desarrollo",
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("Fase") },
-                                modifier = Modifier.fillMaxWidth().menuAnchor(),
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = faseMenuAbierto) }
-                            )
-                            ExposedDropdownMenu(expanded = faseMenuAbierto, onDismissRequest = { faseMenuAbierto = false }) {
-                                DropdownMenuItem(text = { Text("Acopio") }, onClick = { fase = FaseGanado.ACOPIO; faseMenuAbierto = false })
-                                DropdownMenuItem(text = { Text("Desarrollo") }, onClick = { fase = FaseGanado.DESARROLLO; faseMenuAbierto = false })
                             }
-                        }
-                    } else {
-                        // VISTA ARCHIVADA (NO EDITABLE mayoría de campos)
-                        DetailItem("Sexo", animal.sexo.name)
-                        DetailItem("Color", animal.color)
-                        DetailItem("Peso de Compra", "${animal.pesoEntrada.toInt()} kg")
-                        DetailItem("Precio de Compra", formatter.format(animal.precioCompra))
-                        DetailItem("Proveedor", animal.proveedor)
+                        },
+                        label = { Text("Precio de Compra ($)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        visualTransformation = ThousandsSeparatorVisualTransformation()
+                    )
 
-                        if (animal.estadoInventario == EstadoInventario.VENDIDO) {
-                            Spacer(Modifier.height(16.dp))
-                            Text("Datos de Venta", fontWeight = FontWeight.Bold, color = RanchoPrimary)
-                            Spacer(Modifier.height(12.dp))
-                            
-                            OutlinedTextField(
-                                value = pesoVenta,
-                                onValueChange = { input ->
-                                    val filtered = input.filter { it.isDigit() || it == '.' }
-                                    if (filtered.count { it == '.' } <= 1) {
-                                        val parts = filtered.split('.')
-                                        if ((parts.size < 2 || parts[1].length <= 2) && parts[0].length <= 4) {
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = proveedor,
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isLetter() || it.isWhitespace() || it == 'ñ' || it == 'Ñ' || "áéíóúÁÉÍÓÚ".contains(it) }
+                            if (filtered.length <= 30) {
+                                proveedor = filtered
+                                errorValidacion = null
+                            }
+                        },
+                        label = { Text("Proveedor") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Fase (Editable - Dropdown)
+                    var faseMenuAbierto by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(expanded = faseMenuAbierto, onExpandedChange = { faseMenuAbierto = it }) {
+                        OutlinedTextField(
+                            value = if (fase == FaseGanado.ACOPIO) "Acopio" else "Desarrollo",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Fase") },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = faseMenuAbierto) }
+                        )
+                        ExposedDropdownMenu(expanded = faseMenuAbierto, onDismissRequest = { faseMenuAbierto = false }) {
+                            DropdownMenuItem(text = { Text("Acopio") }, onClick = { fase = FaseGanado.ACOPIO; faseMenuAbierto = false })
+                            DropdownMenuItem(text = { Text("Desarrollo") }, onClick = { fase = FaseGanado.DESARROLLO; faseMenuAbierto = false })
+                        }
+                    }
+                } else {
+                    // VISTA ARCHIVADA (NO EDITABLE mayoría de campos)
+                    DetailItem("Sexo", animal.sexo.name)
+                    DetailItem("Color", animal.color)
+                    DetailItem("Peso de Compra", "${animal.pesoEntrada.toInt()} kg")
+                    val formatter = java.text.DecimalFormat("#,###.##")
+                    DetailItem("Precio de Compra", formatter.format(animal.precioCompra))
+                    DetailItem("Proveedor", animal.proveedor)
+
+                    if (animal.estadoInventario == EstadoInventario.VENDIDO) {
+                        Spacer(Modifier.height(16.dp))
+                        Text("Datos de Venta", fontWeight = FontWeight.Bold, color = RanchoPrimary)
+                        Spacer(Modifier.height(12.dp))
+                        
+                        OutlinedTextField(
+                            value = pesoVenta,
+                            onValueChange = { input ->
+                                val filtered = input.filter { it.isDigit() || it == '.' }
+                                if (filtered.count { it == '.' } <= 1) {
+                                    val parts = filtered.split('.')
+                                    val isDeleting = filtered.length < pesoVenta.length
+                                    if (isDeleting || parts[0].length <= 4) {
+                                        if (parts.size < 2 || parts[1].length <= 2) {
                                             pesoVenta = filtered
                                             errorValidacion = null
                                         }
                                     }
-                                },
-                                label = { Text("Peso de Venta (kg)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = precioVenta,
-                                onValueChange = { input ->
-                                    val filtered = input.filter { it.isDigit() || it == '.' }
-                                    if (filtered.count { it == '.' } <= 1) {
-                                        val parts = filtered.split('.')
-                                        if ((parts.size < 2 || parts[1].length <= 2) && parts[0].length <= 6) {
+                                }
+                            },
+                            label = { Text("Peso de Venta (kg)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            visualTransformation = ThousandsSeparatorVisualTransformation()
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = precioVenta,
+                            onValueChange = { input ->
+                                val filtered = input.filter { it.isDigit() || it == '.' }
+                                if (filtered.count { it == '.' } <= 1) {
+                                    val parts = filtered.split('.')
+                                    val isDeleting = filtered.length < precioVenta.length
+                                    if (isDeleting || parts[0].length <= 6) {
+                                        if (parts.size < 2 || parts[1].length <= 2) {
                                             precioVenta = filtered
                                             errorValidacion = null
                                         }
                                     }
-                                },
-                                label = { Text("Precio de Venta ($)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = comprador,
-                                onValueChange = { input ->
-                                    val filtered = input.filter { it.isLetter() || it.isWhitespace() || it == 'ñ' || it == 'Ñ' || "áéíóúÁÉÍÓÚ".contains(it) }
-                                    if (filtered.length <= 30) {
-                                        comprador = filtered
-                                        errorValidacion = null
-                                    }
-                                },
-                                label = { Text("Comprador") },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else if (animal.estadoInventario == EstadoInventario.MUERTO) {
-                            Spacer(Modifier.height(16.dp))
-                            Text("Información de Muerte", fontWeight = FontWeight.Bold, color = RanchoError)
-                            Spacer(Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = mermaEconomica,
-                                onValueChange = { input ->
-                                    val filtered = input.filter { it.isDigit() || it == '.' }
-                                    if (filtered.count { it == '.' } <= 1) {
-                                        val parts = filtered.split('.')
-                                        if ((parts.size < 2 || parts[1].length <= 2) && parts[0].length <= 6) {
-                                            val num = filtered.toDoubleOrNull() ?: 0.0
-                                            if (num <= 100000) {
-                                                mermaEconomica = filtered
-                                                errorValidacion = null
-                                            }
+                                }
+                            },
+                            label = { Text("Precio de Venta ($)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            visualTransformation = ThousandsSeparatorVisualTransformation()
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = comprador,
+                            onValueChange = { input ->
+                                val filtered = input.filter { it.isLetter() || it.isWhitespace() || it == 'ñ' || it == 'Ñ' || "áéíóúÁÉÍÓÚ".contains(it) }
+                                if (filtered.length <= 30) {
+                                    comprador = filtered
+                                    errorValidacion = null
+                                }
+                            },
+                            label = { Text("Comprador") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else if (animal.estadoInventario == EstadoInventario.MUERTO) {
+                        Spacer(Modifier.height(16.dp))
+                        Text("Información de Muerte", fontWeight = FontWeight.Bold, color = RanchoError)
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = mermaEconomica,
+                            onValueChange = { input ->
+                                val filtered = input.filter { it.isDigit() || it == '.' }
+                                if (filtered.count { it == '.' } <= 1) {
+                                    val parts = filtered.split('.')
+                                    val isDeleting = filtered.length < mermaEconomica.length
+                                    if (isDeleting || parts[0].length <= 6) {
+                                        if (parts.size < 2 || parts[1].length <= 2) {
+                                            mermaEconomica = filtered
+                                            errorValidacion = null
                                         }
                                     }
-                                },
-                                label = { Text("Merma Económica ($)") },
-                                modifier = Modifier.fillMaxWidth(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
-                            )
-                        }
+                                }
+                            },
+                            label = { Text("Merma Económica ($)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            visualTransformation = ThousandsSeparatorVisualTransformation()
+                        )
                     }
                 }
+            }
 
-                Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(32.dp))
 
-                // Botones de acción
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(
-                        onClick = { confirmacionEliminar = true },
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) {
-                        Icon(Icons.Default.Delete, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Eliminar")
-                    }
-                    Button(
-                        onClick = {
-                            if (!isArchived) {
-                                val pesoD = peso.replace(",", "").toDoubleOrNull()
-                                val precioD = precio.replace(",", "").toDoubleOrNull()
-                                
-                                when {
-                                    pesoD == null || pesoD < 40 || pesoD > 1000 -> {
-                                        errorValidacion = "El peso debe estar entre 40kg y 1,000kg"
-                                    }
-                                    precioD == null || precioD < 500 || precioD > 100000 -> {
-                                        errorValidacion = "El precio de compra debe estar entre $500 y $100,000"
-                                    }
-                                    proveedor.isBlank() -> {
-                                        errorValidacion = "El proveedor es obligatorio"
-                                    }
-                                    else -> {
-                                        val hayCambios = sexo != animal.sexo || pesoD != animal.pesoEntrada || precioD != animal.precioCompra || proveedor != animal.proveedor || fase != animal.fase || color != animal.color
-                                        if (hayCambios) { errorValidacion = null; confirmacionGuardar = true } 
-                                        else mensajeSinCambios = true
-                                    }
+            // Botones de acción
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(
+                    onClick = { confirmacionEliminar = true },
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Icon(Icons.Default.Delete, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Eliminar")
+                }
+                Button(
+                    onClick = {
+                        if (!isArchived) {
+                            val pesoD = peso.replace(",", "").toDoubleOrNull()
+                            val precioD = precio.replace(",", "").toDoubleOrNull()
+                            
+                            when {
+                                pesoD == null || pesoD < 40 || pesoD > 1000 -> {
+                                    errorValidacion = "El peso debe estar entre 40kg y 1,000kg"
                                 }
-                            } else {
-                                if (animal.estadoInventario == EstadoInventario.VENDIDO) {
-                                    val pV = pesoVenta.replace(",", "").toDoubleOrNull()
-                                    val prV = precioVenta.replace(",", "").toDoubleOrNull()
-                                    if (pV == null || pV <= 0 || pV > 1000) {
-                                        errorValidacion = "Ingresa un peso de venta válido (max 1,000)"
-                                    } else if (prV == null || prV < 0 || prV > 100000) {
-                                        errorValidacion = "Ingresa un precio de venta válido (max 100,000)"
-                                    } else if (comprador.isBlank()) {
-                                        errorValidacion = "El comprador es obligatorio"
-                                    } else {
-                                        val (oldV, oldD) = ventaExtra!!
-                                        val hayCambios = pV != oldD.pesoSalida || prV != oldD.subtotal || comprador != oldV.comprador
-                                        if (hayCambios) confirmacionGuardar = true else mensajeSinCambios = true
-                                    }
-                                } else if (animal.estadoInventario == EstadoInventario.MUERTO) {
-                                    val merma = mermaEconomica.replace(",", "").toDoubleOrNull()
-                                    if (merma == null || merma < 0 || merma > 100000) {
-                                        errorValidacion = "Ingresa una merma válida (0 a 100,000)"
-                                    } else {
-                                        val hayCambios = merma != muerteExtra?.mermaEconomica
-                                        if (hayCambios) confirmacionGuardar = true else mensajeSinCambios = true
-                                    }
+                                precioD == null || precioD < 500 || precioD > 100000 -> {
+                                    errorValidacion = "El precio de compra debe estar entre $500 y $100,000"
+                                }
+                                proveedor.isBlank() -> {
+                                    errorValidacion = "El proveedor es obligatorio"
+                                }
+                                else -> {
+                                    val hayCambios = sexo != animal.sexo || pesoD != animal.pesoEntrada || precioD != animal.precioCompra || proveedor != animal.proveedor || fase != animal.fase || color != animal.color
+                                    if (hayCambios) { errorValidacion = null; confirmacionGuardar = true } 
+                                    else mensajeSinCambios = true
                                 }
                             }
-                        },
-                        modifier = Modifier.weight(1f).height(52.dp),
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.buttonColors(containerColor = RanchoPrimary)
-                    ) {
-                        Icon(Icons.Default.Save, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Guardar")
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                errorValidacion?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.height(8.dp))
-                }
-                Spacer(Modifier.height(40.dp))
-            }
-        }
-
-        if (mensajeSinCambios) {
-            AlertDialog(
-                onDismissRequest = { mensajeSinCambios = false },
-                confirmButton = { TextButton(onClick = { mensajeSinCambios = false }) { Text("Aceptar") } },
-                title = { Text("Sin cambios") },
-                text = { Text("No hay cambios por guardar.") }
-            )
-        }
-
-        if (confirmacionGuardar) {
-            val cambios = buildString {
-                if (!isArchived) {
-                    val nPeso = peso.replace(",", "").toDoubleOrNull() ?: 0.0
-                    val nPrecio = precio.replace(",", "").toDoubleOrNull() ?: 0.0
-                    if (sexo != animal.sexo) append("Sexo\nValor Anterior: ${animal.sexo}\nValor Nuevo: $sexo\n\n")
-                    if (color != animal.color) append("Color\nValor Anterior: ${animal.color}\nValor Nuevo: $color\n\n")
-                    if (nPeso != animal.pesoEntrada) append("Peso\nValor Anterior: ${formatter.format(animal.pesoEntrada)} kg\nValor Nuevo: $peso kg\n\n")
-                    if (nPrecio != animal.precioCompra) append("Precio de Compra\nValor Anterior: $${formatter.format(animal.precioCompra)}\nValor Nuevo: $$precio\n\n")
-                    if (proveedor != animal.proveedor) append("Proveedor\nValor Anterior: ${animal.proveedor}\nValor Nuevo: $proveedor\n\n")
-                    if (fase != animal.fase) append("Fase\nValor Anterior: ${animal.fase}\nValor Nuevo: $fase\n\n")
-                } else {
-                    if (animal.estadoInventario == EstadoInventario.VENDIDO) {
-                        val pV = pesoVenta.replace(",", "").toDoubleOrNull() ?: 0.0
-                        val prV = precioVenta.replace(",", "").toDoubleOrNull() ?: 0.0
-                        val (oldV, oldD) = ventaExtra!!
-                        if (pV != oldD.pesoSalida) append("Peso de Venta\nValor Anterior: ${formatter.format(oldD.pesoSalida)} kg\nValor Nuevo: $pesoVenta kg\n\n")
-                        if (prV != oldD.subtotal) append("Precio de Venta\nValor Anterior: $${formatter.format(oldD.subtotal)}\nValor Nuevo: $$precioVenta\n\n")
-                        if (comprador != oldV.comprador) append("Comprador\nValor Anterior: ${oldV.comprador}\nValor Nuevo: $comprador\n\n")
-                    } else if (animal.estadoInventario == EstadoInventario.MUERTO) {
-                        val merma = mermaEconomica.replace(",", "").toDoubleOrNull() ?: 0.0
-                        if (merma != muerteExtra?.mermaEconomica) append("Merma Económica\nValor Anterior: $${formatter.format(muerteExtra?.mermaEconomica ?: 0.0)}\nValor Nuevo: $$mermaEconomica\n\n")
-                    }
-                }
-            }
-
-            ConfirmDialog(
-                title = "Confirmar Cambios",
-                message = "Esta seguro que que desea guardar estos cambios para el numero de arete ${animal.numeroArete}\n\n$cambios",
-                confirmLabel = "Guardar",
-                onConfirm = {
-                    scope.launch {
-                        if (!isArchived) {
-                            val nPeso = peso.replace(",", "").toDoubleOrNull() ?: animal.pesoEntrada
-                            val nPrecio = precio.replace(",", "").toDoubleOrNull() ?: animal.precioCompra
-                            container.ganadoRepository.editarAnimal(
-                                animal.copy(sexo = sexo, color = color, pesoEntrada = nPeso, precioCompra = nPrecio, proveedor = proveedor, fase = fase),
-                                esAdmin = true
-                            )
                         } else {
                             if (animal.estadoInventario == EstadoInventario.VENDIDO) {
-                                val (v, d) = ventaExtra!!
-                                val pV = pesoVenta.replace(",", "").toDoubleOrNull() ?: d.pesoSalida
-                                val prV = precioVenta.replace(",", "").toDoubleOrNull() ?: d.subtotal
-                                container.ventaRepository.actualizarVentaArchivada(
-                                    v.copy(comprador = comprador, montoTotal = (v.montoTotal - d.subtotal + prV), pesoTotal = (v.pesoTotal - d.pesoSalida + pV)),
-                                    d.copy(pesoSalida = pV, subtotal = prV, precioUnitario = if(pV>0) prV/pV else 0.0)
-                                )
+                                val pV = pesoVenta.replace(",", "").toDoubleOrNull()
+                                val prV = precioVenta.replace(",", "").toDoubleOrNull()
+                                if (pV == null || pV <= 0 || pV > 1000) {
+                                    errorValidacion = "Ingresa un peso de venta válido (max 1,000)"
+                                } else if (prV == null || prV < 0 || prV > 100000) {
+                                    errorValidacion = "Ingresa un precio de venta válido (max 100,000)"
+                                } else if (comprador.isBlank()) {
+                                    errorValidacion = "El comprador es obligatorio"
+                                } else {
+                                    val (oldV, oldD) = ventaExtra!!
+                                    val hayCambios = pV != oldD.pesoSalida || prV != oldD.subtotal || comprador != oldV.comprador
+                                    if (hayCambios) confirmacionGuardar = true else mensajeSinCambios = true
+                                }
                             } else if (animal.estadoInventario == EstadoInventario.MUERTO) {
-                                val merma = mermaEconomica.replace(",", "").toDoubleOrNull() ?: muerteExtra!!.mermaEconomica
-                                container.ganadoRepository.actualizarMortalidad(muerteExtra!!.copy(mermaEconomica = merma))
+                                val merma = mermaEconomica.replace(",", "").toDoubleOrNull()
+                                if (merma == null || merma < 0 || merma > 100000) {
+                                    errorValidacion = "Ingresa una merma válida (0 a 100,000)"
+                                } else {
+                                    val hayCambios = merma != muerteExtra?.mermaEconomica
+                                    if (hayCambios) confirmacionGuardar = true else mensajeSinCambios = true
+                                }
                             }
                         }
-                        confirmacionGuardar = false
-                        onBack()
-                    }
-                },
-                onDismiss = { confirmacionGuardar = false }
-            )
-        }
-
-        if (confirmacionEliminar) {
-            AlertDialog(
-                onDismissRequest = { confirmacionEliminar = false },
-                icon = { Icon(Icons.Outlined.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp)) },
-                title = { Text("¡Atención!", color = MaterialTheme.colorScheme.error) },
-                text = { 
-                    Text("¿Está seguro de que desea eliminar por completo el registro del arete número ${animal.numeroArete}? \n\nSi continua toda la información del animal será eliminada por completo y será como si el animal nunca hubiera existido en el sistema.") 
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                container.ganadoRepository.eliminarAnimal(animal)
-                                confirmacionEliminar = false
-                                onBack()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Eliminar por completo") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { confirmacionEliminar = false }) { Text("Cancelar") }
+                    },
+                    modifier = Modifier.weight(1f).height(52.dp),
+                    shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(containerColor = RanchoPrimary)
+                ) {
+                    Icon(Icons.Default.Save, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Guardar")
                 }
-            )
+            }
+            Spacer(Modifier.height(8.dp))
+            errorValidacion?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+            }
+            Spacer(Modifier.height(40.dp))
+        }
+    }
+
+    if (mensajeSinCambios) {
+        AlertDialog(
+            onDismissRequest = { mensajeSinCambios = false },
+            confirmButton = { TextButton(onClick = { mensajeSinCambios = false }) { Text("Aceptar") } },
+            title = { Text("Sin cambios") },
+            text = { Text("No hay cambios por guardar.") }
+        )
+    }
+
+    if (confirmacionGuardar) {
+        val formatter = java.text.DecimalFormat("#,###.##")
+        val cambios = buildString {
+            if (!isArchived) {
+                val nPeso = peso.replace(",", "").toDoubleOrNull() ?: 0.0
+                val nPrecio = precio.replace(",", "").toDoubleOrNull() ?: 0.0
+                if (sexo != animal.sexo) append("Sexo\nValor Anterior: ${animal.sexo}\nValor Nuevo: $sexo\n\n")
+                if (color != animal.color) append("Color\nValor Anterior: ${animal.color}\nValor Nuevo: $color\n\n")
+                if (nPeso != animal.pesoEntrada) append("Peso\nValor Anterior: ${formatter.format(animal.pesoEntrada)} kg\nValor Nuevo: $peso kg\n\n")
+                if (nPrecio != animal.precioCompra) append("Precio de Compra\nValor Anterior: $${formatter.format(animal.precioCompra)}\nValor Nuevo: $$precio\n\n")
+                if (proveedor != animal.proveedor) append("Proveedor\nValor Anterior: ${animal.proveedor}\nValor Nuevo: $proveedor\n\n")
+                if (fase != animal.fase) append("Fase\nValor Anterior: ${animal.fase}\nValor Nuevo: $fase\n\n")
+            } else {
+                if (animal.estadoInventario == EstadoInventario.VENDIDO) {
+                    val pV = pesoVenta.replace(",", "").toDoubleOrNull() ?: 0.0
+                    val prV = precioVenta.replace(",", "").toDoubleOrNull() ?: 0.0
+                    val (oldV, oldD) = ventaExtra!!
+                    if (pV != oldD.pesoSalida) append("Peso de Venta\nValor Anterior: ${formatter.format(oldD.pesoSalida)} kg\nValor Nuevo: $pesoVenta kg\n\n")
+                    if (prV != oldD.subtotal) append("Precio de Venta\nValor Anterior: $${formatter.format(oldD.subtotal)}\nValor Nuevo: $$precioVenta\n\n")
+                    if (comprador != oldV.comprador) append("Comprador\nValor Anterior: ${oldV.comprador}\nValor Nuevo: $comprador\n\n")
+                } else if (animal.estadoInventario == EstadoInventario.MUERTO) {
+                    val merma = mermaEconomica.replace(",", "").toDoubleOrNull() ?: 0.0
+                    if (merma != muerteExtra?.mermaEconomica) append("Merma Económica\nValor Anterior: $${formatter.format(muerteExtra?.mermaEconomica ?: 0.0)}\nValor Nuevo: $$mermaEconomica\n\n")
+                }
+            }
         }
 
-        if (fotoFullScreen && fotoUriStr != null) {
-            FullScreenImageDialog(uriStr = fotoUriStr!!, onDismiss = { fotoFullScreen = false })
-        }
+        ConfirmDialog(
+            title = "Confirmar Cambios",
+            message = "Esta seguro que que desea guardar estos cambios para el numero de arete ${animal.numeroArete}\n\n$cambios",
+            confirmLabel = "Guardar",
+            onConfirm = {
+                if (!isArchived) {
+                    val nPeso = peso.replace(",", "").toDoubleOrNull() ?: animal.pesoEntrada
+                    val nPrecio = precio.replace(",", "").toDoubleOrNull() ?: animal.precioCompra
+                    onSaveAnimal(animal.copy(sexo = sexo, color = color, pesoEntrada = nPeso, precioCompra = nPrecio, proveedor = proveedor, fase = fase))
+                } else {
+                    if (animal.estadoInventario == EstadoInventario.VENDIDO) {
+                        val (v, d) = ventaExtra!!
+                        val pV = pesoVenta.replace(",", "").toDoubleOrNull() ?: d.pesoSalida
+                        val prV = precioVenta.replace(",", "").toDoubleOrNull() ?: d.subtotal
+                        onSaveVenta(
+                            v.copy(comprador = comprador, montoTotal = (v.montoTotal - d.subtotal + prV), pesoTotal = (v.pesoTotal - d.pesoSalida + pV)),
+                            d.copy(pesoSalida = pV, subtotal = prV, precioUnitario = if(pV>0) prV/pV else 0.0)
+                        )
+                    } else if (animal.estadoInventario == EstadoInventario.MUERTO) {
+                        val merma = mermaEconomica.replace(",", "").toDoubleOrNull() ?: muerteExtra!!.mermaEconomica
+                        onSaveMuerte(muerteExtra!!.copy(mermaEconomica = merma))
+                    }
+                }
+                confirmacionGuardar = false
+            },
+            onDismiss = { confirmacionGuardar = false }
+        )
+    }
+
+    if (confirmacionEliminar) {
+        AlertDialog(
+            onDismissRequest = { confirmacionEliminar = false },
+            icon = { Icon(Icons.Outlined.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp)) },
+            title = { Text("¡Atención!", color = MaterialTheme.colorScheme.error) },
+            text = { 
+                Text("¿Está seguro de que desea eliminar por completo el registro del arete número ${animal.numeroArete}? \n\nSi continua toda la información del animal será eliminada por completo y será como si el animal nunca hubiera existido en el sistema.") 
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDelete()
+                        confirmacionEliminar = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Eliminar por completo") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmacionEliminar = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (fotoFullScreen && fotoUriStr != null) {
+        FullScreenImageDialog(
+            uriStr = fotoUriStr,
+            onDismiss = { fotoFullScreen = false },
+            onRetake = {
+                fotoFullScreen = false
+                abrirCamara()
+            }
+        )
     }
 }
 
@@ -597,7 +701,7 @@ private fun DetailItem(label: String, value: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FullScreenImageDialog(uriStr: String, onDismiss: () -> Unit) {
+fun FullScreenImageDialog(uriStr: String, onDismiss: () -> Unit, onRetake: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -615,6 +719,9 @@ fun FullScreenImageDialog(uriStr: String, onDismiss: () -> Unit) {
                         IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, null, tint = Color.White) }
                     },
                     actions = {
+                        IconButton(onClick = onRetake) {
+                            Icon(Icons.Default.PhotoCamera, "Volver a tomar", tint = Color.White)
+                        }
                         IconButton(onClick = {
                             scope.launch(Dispatchers.IO) {
                                 val success = guardarEnGaleria(context, uriStr)
@@ -634,6 +741,13 @@ fun FullScreenImageDialog(uriStr: String, onDismiss: () -> Unit) {
             }
         }
     }
+}
+
+private fun crearUriParaFoto(context: Context): Uri {
+    val carpeta = File(context.cacheDir, "fotos_ganado").apply { if (!exists()) mkdirs() }
+    val archivo = File.createTempFile("animal_", ".jpg", carpeta)
+    val authority = "${context.packageName}.fileprovider"
+    return FileProvider.getUriForFile(context, authority, archivo)
 }
 
 private suspend fun guardarEnGaleria(context: Context, uriStr: String): Boolean {
@@ -657,5 +771,83 @@ private suspend fun guardarEnGaleria(context: Context, uriStr: String): Boolean 
         } else false
     } catch (e: Exception) {
         false
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun DetalleAnimalScreenPreview() {
+    RanchoTheme {
+        DetalleAnimalContent(
+            animal = Animal(
+                numeroArete = "484000123456789",
+                color = "Ballo",
+                sexo = Sexo.MACHO,
+                proveedor = "Rancho San Martín",
+                precioCompra = 15500.0,
+                pesoEntrada = 450.0,
+                idRangoPeso = 1L,
+                idUsuarioRegistro = 1L,
+                fechaEntrada = System.currentTimeMillis() - (10 * 24 * 60 * 60 * 1000)
+            ),
+            ventaExtra = null,
+            muerteExtra = null,
+            fotoUriStr = null,
+            onBack = {},
+            onSaveAnimal = {},
+            onSaveVenta = { _, _ -> },
+            onSaveMuerte = {},
+            onDelete = {},
+            abrirCamara = {}
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Animal Vendido")
+@Composable
+fun DetalleAnimalVendidoPreview() {
+    RanchoTheme {
+        val animal = Animal(
+            numeroArete = "484000123456789",
+            color = "Negro",
+            sexo = Sexo.MACHO,
+            proveedor = "Proveedor X",
+            precioCompra = 14000.0,
+            pesoEntrada = 420.0,
+            idRangoPeso = 1L,
+            idUsuarioRegistro = 1L,
+            estadoInventario = EstadoInventario.VENDIDO,
+            fechaBaja = System.currentTimeMillis(),
+            tipoBaja = TipoBaja.VENTA
+        )
+        val venta = Venta(
+            idVenta = 1L,
+            comprador = "Cliente Fiel",
+            modalidad = ModalidadVenta.INDIVIDUAL,
+            montoTotal = 18000.0,
+            totalCabezas = 1,
+            pesoTotal = 480.0,
+            idUsuarioRegistro = 1L
+        )
+        val detalle = DetalleVenta(
+            idDetalleVenta = 1L,
+            idVenta = 1L,
+            numeroArete = animal.numeroArete,
+            pesoSalida = 480.0,
+            precioUnitario = 37.5,
+            subtotal = 18000.0
+        )
+        DetalleAnimalContent(
+            animal = animal,
+            ventaExtra = venta to detalle,
+            muerteExtra = null,
+            fotoUriStr = null,
+            onBack = {},
+            onSaveAnimal = {},
+            onSaveVenta = { _, _ -> },
+            onSaveMuerte = {},
+            onDelete = {},
+            abrirCamara = {}
+        )
     }
 }

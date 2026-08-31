@@ -63,7 +63,7 @@ fun AppDrawerContent(
         
         if (isAdmin) {
             add(DrawerItem("Finanzas", "finanzas", Icons.Default.AttachMoney))
-            add(DrawerItem("Aprobaciones", "aprobaciones", Icons.Default.Rule, badgeCount = pendientesCount))
+            // add(DrawerItem("Aprobaciones", "aprobaciones", Icons.Default.Rule, badgeCount = pendientesCount))
             add(DrawerItem("Reportes", "reportes_menu", Icons.Default.Assessment))
         }
         

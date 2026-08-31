@@ -8,20 +8,22 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Female
+import androidx.compose.material.icons.filled.Male
 import androidx.compose.material.icons.filled.Scale
-import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.TrendingDown
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rancho.gestion.AppContainer
+import com.rancho.gestion.R
 import com.rancho.gestion.data.entities.*
 import com.rancho.gestion.domain.EstadoEtapa
 import com.rancho.gestion.domain.Etapa
@@ -46,8 +48,9 @@ import java.util.Locale
 private data class PanelStats(
     val cabezasActivas: Int,
     val toneladasActivas: Double,
-    val cabezasVendidasMes: Int,
-    val ingresosMes: Double,
+    val machos: Int,
+    val hembras: Int,
+    val efectivoGanado: Double,
     val egresosMes: Double
 )
 
@@ -56,24 +59,19 @@ fun PanelScreen(container: AppContainer, onOpenDrawer: () -> Unit) {
     val currency = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
     val usuario by SessionManager.usuarioActual.collectAsState()
 
-    val stats by produceState(initialValue = PanelStats(0, 0.0, 0, 0.0, 0.0), container) {
+    val stats by produceState(initialValue = PanelStats(0, 0.0, 0, 0, 0.0, 0.0), container) {
         val (inicioMes, ahora) = DateUtils.rangoPara(com.rancho.gestion.util.Periodo.MENSUAL)
         combine(
             container.ganadoRepository.activos(),
-            container.ganadoRepository.archivados(),
             container.finanzasRepository.totalPorRango(inicioMes, ahora)
-        ) { activos, archivados, egresosMes ->
+        ) { activos, egresosMes ->
             val cabezasActivas = activos.size
             val toneladas = activos.sumOf { it.pesoEntrada } / 1000.0
-            val vendidosMes = archivados.count {
-                it.estadoInventario == EstadoInventario.VENDIDO && (it.fechaBaja ?: 0) in inicioMes..ahora
-            }
-            // En el nuevo esquema, los ingresos vendrán de la tabla Venta, pero por ahora mantendremos compatibilidad
-            val ingresosMes = archivados
-                .filter { it.estadoInventario == EstadoInventario.VENDIDO && (it.fechaBaja ?: 0) in inicioMes..ahora }
-                .sumOf { 0.0 } // Se actualizará cuando implementemos VentaRepository completo
+            val machos = activos.count { it.sexo == Sexo.MACHO }
+            val hembras = activos.count { it.sexo == Sexo.HEMBRA }
+            val efectivoGanado = activos.sumOf { it.precioCompra }
             
-            PanelStats(cabezasActivas, toneladas, vendidosMes, ingresosMes, egresosMes)
+            PanelStats(cabezasActivas, toneladas, machos, hembras, efectivoGanado, egresosMes)
         }.collect { value = it }
     }
 
@@ -138,7 +136,7 @@ private fun PanelContent(
                 StatCard(
                     titulo = "Cabezas activas",
                     valor = stats.cabezasActivas.toString(),
-                    icon = Icons.Default.Pets,
+                    icon = ImageVector.vectorResource(id = R.drawable.ic_menu_ganado),
                     accentColor = RanchoPrimary,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -154,18 +152,27 @@ private fun PanelContent(
             }
             item {
                 StatCard(
-                    titulo = "Vendidos mes",
-                    valor = stats.cabezasVendidasMes.toString(),
-                    icon = Icons.Default.Sell,
-                    accentColor = RanchoAccent,
+                    titulo = "Machos",
+                    valor = stats.machos.toString(),
+                    icon = Icons.Default.Male,
+                    accentColor = RanchoPrimary,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
             item {
                 StatCard(
-                    titulo = "Ingresos mes",
-                    valor = currency.format(stats.ingresosMes),
-                    icon = Icons.Default.TrendingUp,
+                    titulo = "Hembras",
+                    valor = stats.hembras.toString(),
+                    icon = Icons.Default.Female,
+                    accentColor = RanchoAccent,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            item(span = { GridItemSpan(2) }) {
+                StatCard(
+                    titulo = "Efectivo del ganado",
+                    valor = currency.format(stats.efectivoGanado),
+                    icon = ImageVector.vectorResource(id = R.drawable.ic_money_stack),
                     accentColor = RanchoSuccess,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -216,7 +223,7 @@ private fun AlertasCard(alertas: List<Pair<Animal, EstadoEtapa>>) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    AreteTag(animal.numeroArete)
+                    AreteTag(animal.numeroArete, animal.tipoArete)
                     Spacer(Modifier.width(10.dp))
                     Text(
                         text = "Fase: ${animal.fase.name}",
@@ -246,7 +253,7 @@ private fun fechaDeHoy(): String {
 @Preview(showBackground = true, widthDp = 360)
 @Composable
 fun PanelPreview() {
-    val dummyStats = PanelStats(120, 45.5, 15, 250000.0, 85000.0)
+    val dummyStats = PanelStats(120, 45.5, 70, 50, 1440000.0, 85000.0)
     val dummyAnimal = Animal(numeroArete = "484101", color = "Negro", sexo = Sexo.MACHO, pesoEntrada = 450.0, precioCompra = 12000.0, proveedor = "P1", idUsuarioRegistro = 1, idRangoPeso = null)
     val dummyEstado = EstadoEtapa(Etapa.ACOPIO, 45, true, "Alerta")
 

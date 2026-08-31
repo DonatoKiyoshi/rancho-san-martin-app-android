@@ -21,7 +21,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,6 +34,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.ui.window.Dialog
 import com.rancho.gestion.data.entities.FaseGanado
+import com.rancho.gestion.data.entities.TipoArete
 import com.rancho.gestion.ui.theme.RanchoCard
 import com.rancho.gestion.ui.theme.RanchoError
 import com.rancho.gestion.ui.theme.RanchoErrorContainer
@@ -180,15 +185,25 @@ fun SectionCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.
     }
 }
 
-/** Etiqueta oscura tipo "MX-01002" de la lista de Ganado. */
+/** Etiqueta que indica el tipo de arete y su número con colores distintivos. */
 @Composable
-fun AreteTag(arete: String) {
+fun AreteTag(arete: String, tipo: TipoArete = TipoArete.SADER) {
+    val (backgroundColor, textColor) = when (tipo) {
+        TipoArete.SADER -> Color(0xFFFFD700) to Color.Black
+        TipoArete.OTRO -> Color(0xFF00CED1) to Color.White
+    }
+
     Box(
         Modifier
-            .background(RanchoPrimary, RoundedCornerShape(50))
+            .background(backgroundColor, RoundedCornerShape(50))
             .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Text(arete, color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelLarge)
+        Text(
+            text = arete, 
+            color = textColor, 
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -221,7 +236,8 @@ fun MenuOptionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    accentColor: Color = RanchoPrimary
+    accentColor: Color = RanchoPrimary,
+    tint: Color = accentColor
 ) {
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
@@ -242,7 +258,7 @@ fun MenuOptionCard(
                     .background(accentColor.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = accentColor)
+                Icon(icon, contentDescription = null, tint = tint)
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
@@ -477,4 +493,69 @@ fun InfoDialog(
             }
         }
     )
+}
+
+class ThousandsSeparatorVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val originalText = text.text
+        if (originalText.isEmpty()) return TransformedText(text, OffsetMapping.Identity)
+
+        val parts = originalText.split('.')
+        val integerPart = parts[0]
+        val decimalPart = if (parts.size > 1) "." + parts[1] else ""
+
+        val formattedInteger = StringBuilder()
+        var count = 0
+        for (i in integerPart.length - 1 downTo 0) {
+            formattedInteger.append(integerPart[i])
+            count++
+            if (count % 3 == 0 && i > 0) {
+                formattedInteger.append(',')
+            }
+        }
+        val out = formattedInteger.reverse().toString() + decimalPart
+
+        val offsetMapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                if (offset <= 0) return 0
+                val integerLength = integerPart.length
+                val realOffset = offset.coerceAtMost(originalText.length)
+                
+                return if (realOffset <= integerLength) {
+                    var commas = 0
+                    for (i in 1 until realOffset) {
+                        if ((integerLength - i) % 3 == 0) commas++
+                    }
+                    realOffset + commas
+                } else {
+                    val totalCommas = if (integerLength > 0) (integerLength - 1) / 3 else 0
+                    realOffset + totalCommas
+                }
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                if (offset <= 0) return 0
+                val integerLength = integerPart.length
+                val totalCommas = if (integerLength > 0) (integerLength - 1) / 3 else 0
+                val formattedIntegerLength = integerLength + totalCommas
+                
+                return if (offset <= formattedIntegerLength) {
+                    var originalOffset = 0
+                    var transformedOffset = 0
+                    while (transformedOffset < offset && originalOffset < integerLength) {
+                        originalOffset++
+                        transformedOffset++
+                        if ((integerLength - originalOffset) % 3 == 0 && originalOffset < integerLength && transformedOffset < offset) {
+                            transformedOffset++
+                        }
+                    }
+                    originalOffset
+                } else {
+                    (offset - totalCommas).coerceAtMost(originalText.length)
+                }
+            }
+        }
+
+        return TransformedText(AnnotatedString(out), offsetMapping)
+    }
 }

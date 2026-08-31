@@ -17,21 +17,21 @@ import java.util.concurrent.TimeUnit
  */
 class ClasificadorPesoTest {
     private val rangos = listOf(
-        RangoPeso(id = 1L, pesoMin = 130.0, pesoMax = 220.0),
-        RangoPeso(id = 2L, pesoMin = 221.0, pesoMax = 280.0)
+        RangoPeso(idRangoPeso = 1L, limiteInferior = 130.0, limiteSuperior = 220.0, nombreRango = "R1"),
+        RangoPeso(idRangoPeso = 2L, limiteInferior = 221.0, limiteSuperior = 280.0, nombreRango = "R2")
     )
 
     @Test
     fun `clasifica un peso dentro del primer rango`() {
         val rango = ClasificadorPeso.clasificar(180.0, rangos)
-        assertEquals(130.0, rango?.pesoMin)
-        assertEquals(220.0, rango?.pesoMax)
+        assertEquals(130.0, rango?.limiteInferior)
+        assertEquals(220.0, rango?.limiteSuperior)
     }
 
     @Test
     fun `clasifica un peso dentro del segundo rango`() {
         val rango = ClasificadorPeso.clasificar(250.0, rangos)
-        assertEquals(221.0, rango?.pesoMin)
+        assertEquals(221.0, rango?.limiteInferior)
     }
 
     @Test

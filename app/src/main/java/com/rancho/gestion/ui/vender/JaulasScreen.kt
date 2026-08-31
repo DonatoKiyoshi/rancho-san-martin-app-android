@@ -493,12 +493,13 @@ private fun AgregarAnimalesDialog(
         ) {
             BarcodeScannerScreen(
                 onResult = { result ->
-                    val animal = candidatos.firstOrNull { it.numeroArete == result }
+                    val sanitized = result.filter { it.isDigit() }.take(15)
+                    val animal = candidatos.firstOrNull { it.numeroArete == sanitized }
                     if (animal != null) {
                         intentarSeleccionarAnimal(animal)
                         mostrarScanner = false
                     } else {
-                        mensaje = "Animal $result no encontrado o ya asignado."
+                        mensaje = "Animal $sanitized no encontrado o ya asignado."
                         mostrarScanner = false
                     }
                 },
@@ -569,7 +570,7 @@ private fun AgregarAnimalesDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    AreteTag(animal.numeroArete)
+                                    AreteTag(animal.numeroArete, animal.tipoArete)
                                     val sexoStr = if (animal.sexo == Sexo.MACHO) "Macho" else "Hembra"
                                     Text(
                                         text = "$sexoStr · ${animal.color} · ${animal.pesoEntrada.toInt()} kg", 

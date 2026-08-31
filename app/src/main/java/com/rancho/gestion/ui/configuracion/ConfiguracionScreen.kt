@@ -49,6 +49,7 @@ fun ConfiguracionScreen(
     ConfiguracionContent(
         rangos = rangos,
         isAdmin = isAdmin,
+        idUsuarioActual = usuario?.idUsuario ?: -1L,
         onOpenDrawer = onOpenDrawer,
         onNavigateToUsuarios = onNavigateToUsuarios,
         onAgregarRango = { nombre, min, max ->
@@ -70,6 +71,7 @@ fun ConfiguracionScreen(
 private fun ConfiguracionContent(
     rangos: List<RangoPeso>,
     isAdmin: Boolean,
+    idUsuarioActual: Long,
     onOpenDrawer: () -> Unit,
     onNavigateToUsuarios: () -> Unit,
     onAgregarRango: suspend (String, Double, Double) -> ResultadoOperacion,
@@ -231,23 +233,25 @@ private fun ConfiguracionContent(
                 Spacer(Modifier.height(16.dp))
             }
 
-            // SECCIÓN: Cambiar Contraseña
-            MenuOptionCard(
-                label = "Cambiar Contraseña",
-                subtitle = "Actualiza tus credenciales de acceso",
-                icon = Icons.Default.Lock,
-                onClick = {
-                    seccionExpandida = if (seccionExpandida == "password") null else "password"
-                }
-            )
+            if (idUsuarioActual != 1L) {
+                // SECCIÓN: Cambiar Contraseña
+                MenuOptionCard(
+                    label = "Cambiar Contraseña",
+                    subtitle = "Actualiza tus credenciales de acceso",
+                    icon = Icons.Default.Lock,
+                    onClick = {
+                        seccionExpandida = if (seccionExpandida == "password") null else "password"
+                    }
+                )
 
-            AnimatedVisibility(
-                visible = seccionExpandida == "password",
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(Modifier.padding(top = 12.dp)) {
-                    CambiarContrasenaCard(onChangePassword)
+                AnimatedVisibility(
+                    visible = seccionExpandida == "password",
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(Modifier.padding(top = 12.dp)) {
+                        CambiarContrasenaCard(onChangePassword)
+                    }
                 }
             }
             
@@ -352,6 +356,7 @@ fun ConfiguracionPreview() {
                 RangoPeso(idRangoPeso = 1, limiteInferior = 130.0, limiteSuperior = 220.0, nombreRango = "Becerro")
             ),
             isAdmin = true,
+            idUsuarioActual = 1L,
             onOpenDrawer = {},
             onAgregarRango = { _, _, _ -> ResultadoOperacion.Ok },
             onEliminarRango = {},

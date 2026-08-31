@@ -2,18 +2,20 @@ package com.rancho.gestion.ui.vender
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.HeartBroken
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Sell
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
+import com.rancho.gestion.R
 import com.rancho.gestion.ui.components.BackTopBar
 import com.rancho.gestion.ui.components.MenuOptionCard
 import com.rancho.gestion.ui.theme.RanchoAccent
 import com.rancho.gestion.ui.theme.RanchoError
 import com.rancho.gestion.ui.theme.RanchoPrimary
+import com.rancho.gestion.ui.theme.RanchoTheme
 
 /**
  * Menú "Vender" — tres salidas de ganado según el boceto:
@@ -43,8 +45,9 @@ fun VenderMenuScreen(
             )
             MenuOptionCard(
                 label = "Jaula",
-                icon = Icons.Default.Inventory2,
+                icon = ImageVector.vectorResource(id = R.drawable.jaula_icon),
                 accentColor = RanchoAccent,
+                tint = androidx.compose.ui.graphics.Color.Unspecified,
                 subtitle = "Vender todos los animales de un lote",
                 onClick = onJaula
             )
@@ -56,5 +59,13 @@ fun VenderMenuScreen(
                 onClick = onRegistrarMuerte
             )
         }
+    }
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
+fun VenderMenuScreenPreview() {
+    RanchoTheme {
+        VenderMenuScreen({}, {}, {}, {})
     }
 }

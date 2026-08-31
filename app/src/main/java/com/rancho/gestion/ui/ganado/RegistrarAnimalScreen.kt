@@ -19,6 +19,10 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.ViewWeek
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import com.rancho.gestion.ui.components.ThousandsSeparatorVisualTransformation
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -43,6 +48,7 @@ import coil.compose.AsyncImage
 import com.rancho.gestion.AppContainer
 import com.rancho.gestion.R
 import com.rancho.gestion.data.entities.Sexo
+import com.rancho.gestion.data.entities.TipoArete
 import com.rancho.gestion.data.repository.ResultadoOperacion
 import com.rancho.gestion.ui.components.BackTopBar
 import com.rancho.gestion.ui.components.BarcodeScannerScreen
@@ -60,6 +66,7 @@ import java.io.File
 @Composable
 fun RegistrarAnimalScreen(container: AppContainer, onBack: () -> Unit) {
     val context = LocalContext.current
+    var tipoArete by rememberSaveable { mutableStateOf(TipoArete.SADER) }
     var arete by rememberSaveable { mutableStateOf("") }
     var color by rememberSaveable { mutableStateOf("") }
     var sexo by rememberSaveable { mutableStateOf(Sexo.MACHO) }
@@ -145,7 +152,7 @@ fun RegistrarAnimalScreen(container: AppContainer, onBack: () -> Unit) {
         ) {
             BarcodeScannerScreen(
                 onResult = { result ->
-                    arete = result
+                    arete = result.filter { it.isDigit() }.take(15)
                     mostrarScanner = false
                 },
                 onBack = { mostrarScanner = false }
@@ -153,18 +160,60 @@ fun RegistrarAnimalScreen(container: AppContainer, onBack: () -> Unit) {
         }
     } else {
         RegistrarAnimalContent(
+            tipoArete = tipoArete,
+            onTipoAreteChange = { 
+                tipoArete = it
+                arete = "" // Limpiar al cambiar tipo para evitar inconsistencias
+                error = null
+            },
             arete = arete,
-            onAreteChange = { arete = it; error = null },
+            onAreteChange = { input ->
+                val digitsOnly = input.filter { it.isDigit() }
+                val maxLen = if (tipoArete == TipoArete.SADER) 15 else 6
+                arete = digitsOnly.take(maxLen)
+                error = null
+            },
             color = color,
             onColorChange = { color = it },
             sexo = sexo,
             onSexoChange = { sexo = it },
             peso = peso,
-            onPesoChange = { peso = it.filter { c -> c.isDigit() || c == '.' } },
+            onPesoChange = { input ->
+                val filtered = input.replace(',', '.')
+                if (filtered.all { it.isDigit() || it == '.' } && filtered.count { it == '.' } <= 1) {
+                    val parts = filtered.split('.')
+                    val isDeleting = filtered.length < peso.length
+                    if (isDeleting || parts[0].length <= 4) {
+                        if (parts.size == 1 || parts[1].length <= 2) {
+                            peso = filtered
+                            error = null
+                        }
+                    }
+                }
+            },
             precio = precio,
-            onPrecioChange = { precio = it.filter { c -> c.isDigit() || c == '.' } },
+            onPrecioChange = { input ->
+                val filtered = input.replace(',', '.')
+                if (filtered.all { it.isDigit() || it == '.' } && filtered.count { it == '.' } <= 1) {
+                    val parts = filtered.split('.')
+                    val isDeleting = filtered.length < precio.length
+                    if (isDeleting || parts[0].length <= 6) {
+                        if (parts.size == 1 || parts[1].length <= 2) {
+                            precio = filtered
+                            error = null
+                        }
+                    }
+                }
+            },
             proveedor = proveedor,
-            onProveedorChange = { proveedor = it },
+            onProveedorChange = { input ->
+                if (input.length <= 50) {
+                    val allowedChars = Regex("[a-zA-Z0-9 ñÑáéíóúÁÉÍÓÚ\\-_]*")
+                    if (allowedChars.matches(input)) {
+                        proveedor = input
+                    }
+                }
+            },
             fotoUri = fotoUriStr?.toUri(),
             onTomarFoto = { abrirCamara() },
             onQuitarFoto = { fotoUriStr = null },
@@ -178,10 +227,10 @@ fun RegistrarAnimalScreen(container: AppContainer, onBack: () -> Unit) {
                 val precioD = precio.toDoubleOrNull()
                 when {
                     arete.isBlank() -> error = "El arete es obligatorio"
-                    !arete.startsWith("484") -> error = "El arete debe empezar con 484"
-                    arete.length > 15 -> error = "El arete no debe exceder 15 dígitos"
-                    pesoD == null || pesoD <= 0 -> error = "Ingresa un peso válido"
-                    precioD == null || precioD < 0 -> error = "Ingresa un precio válido"
+                    tipoArete == TipoArete.SADER && arete.length != 15 -> error = "El arete SADER debe tener exactamente 15 dígitos"
+                    tipoArete == TipoArete.OTRO && arete.length > 6 -> error = "El arete OTRO no puede exceder 6 dígitos"
+                    pesoD == null || pesoD < 40 || pesoD > 1000 -> error = "El peso debe estar entre 40 y 1,000 kg"
+                    precioD == null || precioD < 400 || precioD > 100000 -> error = "El precio debe estar entre 400 y 100,000"
                     proveedor.isBlank() -> error = "El proveedor es obligatorio"
                     else -> {
                         guardando = true
@@ -194,6 +243,7 @@ fun RegistrarAnimalScreen(container: AppContainer, onBack: () -> Unit) {
 
                             val resultado = container.ganadoRepository.registrarAnimal(
                                 arete = arete,
+                                tipoArete = tipoArete,
                                 color = color,
                                 sexo = sexo,
                                 peso = pesoD,
@@ -227,6 +277,8 @@ fun RegistrarAnimalScreen(container: AppContainer, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RegistrarAnimalContent(
+    tipoArete: TipoArete,
+    onTipoAreteChange: (TipoArete) -> Unit,
     arete: String,
     onAreteChange: (String) -> Unit,
     color: String,
@@ -260,11 +312,12 @@ private fun RegistrarAnimalContent(
             Modifier
                 .padding(padding)
                 .padding(horizontal = 20.dp)
+                .imePadding()
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(8.dp))
 
-            Text("Fotografía (opcional)", style = MaterialTheme.typography.labelLarge, color = RanchoTextSecondary)
+            Text("Fotografía", style = MaterialTheme.typography.labelLarge, color = RanchoTextSecondary)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -306,6 +359,29 @@ private fun RegistrarAnimalContent(
             }
 
             Spacer(Modifier.height(18.dp))
+
+            Text("Tipo de Arete", style = MaterialTheme.typography.labelLarge, color = RanchoTextSecondary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = tipoArete == TipoArete.SADER,
+                        onClick = { onTipoAreteChange(TipoArete.SADER) },
+                        colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFFFD700))
+                    )
+                    Text("SADER", style = MaterialTheme.typography.bodyLarge)
+                }
+                Spacer(Modifier.width(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = tipoArete == TipoArete.OTRO,
+                        onClick = { onTipoAreteChange(TipoArete.OTRO) },
+                        colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF00CED1))
+                    )
+                    Text("OTRO", style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
             
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
@@ -315,28 +391,34 @@ private fun RegistrarAnimalContent(
                     OutlinedTextField(
                         value = arete,
                         onValueChange = onAreteChange,
-                        label = { Text("Arete") },
+                        label = { Text(if (tipoArete == TipoArete.SADER) "Arete SADER" else "Arete OTRO") },
                         singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f)
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = onEscanearClick,
-                        modifier = Modifier
-                            .height(56.dp)
-                            .width(80.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RanchoPrimary),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.ViewWeek, contentDescription = null)
-                            Text("Escanear", fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                    if (tipoArete == TipoArete.SADER) {
+                        Spacer(Modifier.width(8.dp))
+                        Button(
+                            onClick = onEscanearClick,
+                            modifier = Modifier
+                                .height(56.dp)
+                                .width(80.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = RanchoPrimary),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.ViewWeek, contentDescription = null)
+                                Text("Escanear", fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                            }
                         }
                     }
                 }
                 Text(
-                    text = "Escribe o escanea con el lector de código de barras",
+                    text = if (tipoArete == TipoArete.SADER) 
+                        "Escribe o escanea con el lector de código de barras"
+                    else 
+                        "Ingresa máximo 6 dígitos numéricos",
                     style = MaterialTheme.typography.bodySmall,
                     color = RanchoTextSecondary,
                     modifier = Modifier.padding(start = 16.dp, top = 4.dp)
@@ -389,6 +471,7 @@ private fun RegistrarAnimalContent(
                 label = { Text("Peso (kg)") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                visualTransformation = ThousandsSeparatorVisualTransformation(),
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(14.dp))
@@ -398,6 +481,7 @@ private fun RegistrarAnimalContent(
                 label = { Text("Precio de compra") },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                visualTransformation = ThousandsSeparatorVisualTransformation(),
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(14.dp))
@@ -453,6 +537,8 @@ private fun crearUriParaFoto(context: Context): Uri {
 fun RegistrarAnimalPreview() {
     MaterialTheme {
         RegistrarAnimalContent(
+            tipoArete = TipoArete.SADER,
+            onTipoAreteChange = {},
             arete = "1234",
             onAreteChange = {},
             color = "Negro",

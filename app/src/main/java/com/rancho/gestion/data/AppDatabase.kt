@@ -7,6 +7,7 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.room.migration.Migration
 import com.rancho.gestion.data.dao.*
 import com.rancho.gestion.data.entities.*
 import com.rancho.gestion.util.PasswordHasher
@@ -31,7 +32,7 @@ import kotlinx.coroutines.launch
         Auditoria::class,
         Configuracion::class
     ],
-    version = 5, // Incrementando versión por el nuevo campo 'finalizada' en Venta
+    version = 9, // Incrementado para añadir tipo_arete
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -49,6 +50,26 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
 
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val nuevaPass = "RanchoSanMartin_a5rCNc!Q"
+                val hash = PasswordHasher.hash(nuevaPass)
+                
+                // 1. Asegurar Admin y su contraseña
+                db.execSQL("UPDATE usuarios SET password_hash = '$hash' WHERE nombre_usuario = 'admin'")
+                
+                // 2. Eliminar empleado si existiera
+                db.execSQL("DELETE FROM usuarios WHERE nombre_usuario = 'empleado'")
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Añadir la columna tipo_arete con valor por defecto SADER
+                db.execSQL("ALTER TABLE ganado ADD COLUMN tipo_arete TEXT NOT NULL DEFAULT 'SADER'")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -56,6 +77,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "rancho_final_v9.db"
                 )
+                .addMigrations(MIGRATION_7_8, MIGRATION_8_9)
                 .fallbackToDestructiveMigration()
                 .addCallback(SeedCallback())
                 .build().also { INSTANCE = it }
@@ -68,20 +90,13 @@ abstract class AppDatabase : RoomDatabase() {
             db.setForeignKeyConstraintsEnabled(true)
         }
 
-        override fun onDestructiveMigration(db: SupportSQLiteDatabase) {
-            super.onDestructiveMigration(db)
-            // No action needed here, onCreate will be called after
-        }
-
         override fun onCreate(db: SupportSQLiteDatabase) {
             super.onCreate(db)
             db.execSQL("PRAGMA foreign_keys = ON;")
-            // Seeding directly with SQL via SupportSQLiteDatabase to avoid deadlock/instance issues
             val ahora = System.currentTimeMillis()
             
-            // 1. Seed Usuarios
-            val adminPass = PasswordHasher.hash("admin123")
-            val empPass = PasswordHasher.hash("empleado123")
+            // 1. Seed Usuarios (Solo Admin con la nueva contraseña)
+            val adminPass = PasswordHasher.hash("RanchoSanMartin_a5rCNc!Q")
             
             val adminValues = ContentValues().apply {
                 put("nombre", "Administrador")
@@ -94,18 +109,6 @@ abstract class AppDatabase : RoomDatabase() {
                 put("version", 1)
             }
             val adminId = db.insert("usuarios", android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE, adminValues)
-
-            val empValues = ContentValues().apply {
-                put("nombre", "Empleado de Rancho")
-                put("nombre_usuario", "empleado")
-                put("password_hash", empPass)
-                put("rol", "EMPLEADO")
-                put("estado", 1)
-                put("fecha_creacion", ahora)
-                put("fecha_actualizacion", ahora)
-                put("version", 1)
-            }
-            db.insert("usuarios", android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE, empValues)
 
             // 2. Seed Rangos de Peso
             val r1 = ContentValues().apply {

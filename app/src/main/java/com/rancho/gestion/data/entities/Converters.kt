@@ -29,4 +29,12 @@ class Converters {
 
     @TypeConverter fun fromEstadoSincronizacion(value: EstadoSincronizacion): String = value.name
     @TypeConverter fun toEstadoSincronizacion(value: String): EstadoSincronizacion = EstadoSincronizacion.valueOf(value)
+
+    @TypeConverter fun fromTipoArete(value: TipoArete): String = value.name
+    @TypeConverter fun toTipoArete(value: String): TipoArete {
+        return when (value) {
+            "GENERICO" -> TipoArete.OTRO
+            else -> try { TipoArete.valueOf(value) } catch (e: Exception) { TipoArete.SADER }
+        }
+    }
 }

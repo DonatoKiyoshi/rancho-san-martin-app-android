@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rancho.gestion.AppContainer
@@ -80,12 +81,13 @@ fun UsuariosScreen(container: AppContainer, onBack: () -> Unit) {
         UsuarioDialog(
             titulo = "Nuevo Usuario",
             onDismiss = { mostrarNuevoUsuario = false },
-            onConfirm = { nombre, user, pass, rol ->
+            checkExists = { container.authRepository.existeUsuario(it) },
+            onConfirm = { nombre, user, pass, _ ->
                 datosRegistroConfirmar = Usuario(
                     nombre = nombre,
-                    nombreUsuario = user,
+                    nombreUsuario = user.trim().lowercase(),
                     passwordHash = pass, // Guardamos la temporal para mostrarla
-                    rol = rol
+                    rol = Rol.ADMINISTRADOR
                 )
             }
         )
@@ -125,12 +127,16 @@ fun UsuariosScreen(container: AppContainer, onBack: () -> Unit) {
             initialRol = usuarioAEditar!!.rol,
             isEdit = true,
             onDismiss = { usuarioAEditar = null },
+            checkExists = { newUser ->
+                if (newUser.trim().lowercase() == usuarioAEditar!!.nombreUsuario) false
+                else container.authRepository.existeUsuario(newUser)
+            },
             onConfirm = { nombre, user, _, _ ->
-                if (nombre.trim() == usuarioAEditar!!.nombre && user.trim() == usuarioAEditar!!.nombreUsuario) {
+                if (nombre.trim() == usuarioAEditar!!.nombre && user.trim().lowercase() == usuarioAEditar!!.nombreUsuario) {
                     usuarioAEditar = null
                     mostrarSinCambios = true
                 } else {
-                    datosEdicionConfirmar = nombre.trim() to user.trim()
+                    datosEdicionConfirmar = nombre.trim() to user.trim().lowercase()
                 }
             }
         )
@@ -202,17 +208,58 @@ fun UsuariosScreen(container: AppContainer, onBack: () -> Unit) {
     }
 
     if (usuarioAEliminar != null) {
-        ConfirmDialog(
-            title = "Eliminar Usuario",
-            message = "¿Estás seguro de eliminar a ${usuarioAEliminar!!.nombre}? Esta acción no se puede deshacer.",
-            confirmLabel = "Eliminar",
-            onConfirm = {
-                scope.launch {
-                    container.authRepository.eliminarUsuario(usuarioAEliminar!!)
-                    usuarioAEliminar = null
+        val isMe = usuarioAEliminar!!.idUsuario == SessionManager.currentUserId()
+        AlertDialog(
+            onDismissRequest = { usuarioAEliminar = null },
+            icon = { 
+                Icon(
+                    imageVector = Icons.Default.Warning, 
+                    contentDescription = null, 
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(48.dp)
+                ) 
+            },
+            title = { 
+                Text(
+                    text = if (isMe) "Confirmar Auto-Eliminación" else "Eliminar Usuario",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.ExtraBold
+                ) 
+            },
+            text = { 
+                Text(
+                    text = if (isMe) {
+                        "Estás a punto de eliminar TU PROPIA CUENTA. Si continúas, la sesión se cerrará inmediatamente y no podrás volver a entrar con tus credenciales actuales. ¿Estás seguro?"
+                    } else {
+                        "¿Estás seguro de eliminar a ${usuarioAEliminar!!.nombre}? Esta acción no se puede deshacer."
+                    },
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        scope.launch {
+                            val idAEliminar = usuarioAEliminar!!.idUsuario
+                            container.authRepository.eliminarUsuario(usuarioAEliminar!!)
+                            usuarioAEliminar = null
+                            if (idAEliminar == SessionManager.currentUserId()) {
+                                SessionManager.logout()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { 
+                    Text(if (isMe) "Eliminar y Salir" else "Eliminar") 
                 }
             },
-            onDismiss = { usuarioAEliminar = null }
+            dismissButton = {
+                TextButton(onClick = { usuarioAEliminar = null }) { 
+                    Text("Cancelar") 
+                }
+            }
         )
     }
 }
@@ -259,9 +306,9 @@ private fun UsuarioCard(
             }
             
             Row {
-                IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Editar", tint = RanchoTextSecondary) }
-                IconButton(onClick = onResetPassword) { Icon(Icons.Default.LockReset, "Restablecer", tint = RanchoTextSecondary) }
-                if (!isMe && usuario.rol != Rol.ADMINISTRADOR) {
+                if (usuario.idUsuario != 1L) {
+                    IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Editar", tint = RanchoTextSecondary) }
+                    IconButton(onClick = onResetPassword) { Icon(Icons.Default.LockReset, "Restablecer", tint = RanchoTextSecondary) }
                     IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Eliminar", tint = MaterialTheme.colorScheme.error) }
                 }
             }
@@ -275,22 +322,26 @@ private fun UsuarioDialog(
     titulo: String,
     initialNombre: String = "",
     initialUser: String = "",
-    initialRol: Rol = Rol.EMPLEADO,
+    initialRol: Rol = Rol.ADMINISTRADOR,
     isEdit: Boolean = false,
     onDismiss: () -> Unit,
+    checkExists: suspend (String) -> Boolean,
     onConfirm: (String, String, String, Rol) -> Unit
 ) {
     var nombre by remember { mutableStateOf(initialNombre) }
     var user by remember { mutableStateOf(initialUser) }
     var pass by remember { mutableStateOf("") }
+    var passVisible by remember { mutableStateOf(false) }
     var rol by remember { mutableStateOf(initialRol) }
-    var rolMenuAbierto by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var validando by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     SimpleFormDialog(
         title = titulo,
         onDismiss = onDismiss,
         confirmLabel = if (isEdit) "Guardar" else "Agregar",
+        confirmEnabled = !validando,
         onConfirm = {
             val passError = when {
                 pass.length < 6 -> "La contraseña debe tener al menos 6 caracteres"
@@ -300,14 +351,23 @@ private fun UsuarioDialog(
 
             if (nombre.isBlank() || user.isBlank() || (!isEdit && pass.isBlank())) {
                 error = "Completa todos los campos obligatorios"
-            } else if (nombre.length > 60) {
-                error = "El nombre no debe exceder los 60 caracteres"
+            } else if (nombre.length > 50) {
+                error = "El nombre no debe exceder los 50 caracteres"
             } else if (user.length > 20) {
                 error = "El usuario no debe exceder los 20 caracteres"
             } else if (!isEdit && passError != null) {
                 error = passError
             } else {
-                onConfirm(nombre, user, pass, rol)
+                validando = true
+                scope.launch {
+                    if (checkExists(user)) {
+                        error = "El nombre de usuario '$user' ya está en uso"
+                        validando = false
+                    } else {
+                        onConfirm(nombre, user, pass, rol)
+                        validando = false
+                    }
+                }
             }
         }
     ) {
@@ -315,7 +375,7 @@ private fun UsuarioDialog(
             value = nombre,
             onValueChange = { input -> 
                 val filtered = input.filter { it.isLetter() || it.isWhitespace() || it == 'ñ' || it == 'Ñ' || "áéíóúÁÉÍÓÚ".contains(it) }
-                if (filtered.length <= 60) nombre = filtered
+                if (filtered.length <= 50) nombre = filtered
             },
             label = { Text("Nombre Completo") },
             singleLine = true,
@@ -335,39 +395,20 @@ private fun UsuarioDialog(
         
         if (!isEdit) {
             Spacer(Modifier.height(8.dp))
-            ExposedDropdownMenuBox(
-                expanded = rolMenuAbierto,
-                onExpandedChange = { rolMenuAbierto = it }
-            ) {
-                OutlinedTextField(
-                    value = if (rol == Rol.ADMINISTRADOR) "Administrador" else "Empleado",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Rol") },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = rolMenuAbierto) }
-                )
-                ExposedDropdownMenu(
-                    expanded = rolMenuAbierto,
-                    onDismissRequest = { rolMenuAbierto = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Administrador") },
-                        onClick = { rol = Rol.ADMINISTRADOR; rolMenuAbierto = false }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Empleado") },
-                        onClick = { rol = Rol.EMPLEADO; rolMenuAbierto = false }
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = pass,
-                onValueChange = { pass = it },
+                onValueChange = { if (it.length <= 16) pass = it },
                 label = { Text("Contraseña") },
                 singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
+                visualTransformation = if (passVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { passVisible = !passVisible }) {
+                        Icon(
+                            imageVector = if (passVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (passVisible) "Ocultar" else "Mostrar"
+                        )
+                    }
+                },
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -407,7 +448,7 @@ private fun RestablecerPasswordDialog(
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = pass,
-            onValueChange = { pass = it; error = null },
+            onValueChange = { if (it.length <= 16) { pass = it; error = null } },
             label = { Text("Nueva Contraseña") },
             singleLine = true,
             visualTransformation = if (passVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),
@@ -424,7 +465,7 @@ private fun RestablecerPasswordDialog(
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = confirmPass,
-            onValueChange = { confirmPass = it; error = null },
+            onValueChange = { if (it.length <= 16) { confirmPass = it; error = null } },
             label = { Text("Confirmar Nueva Contraseña") },
             singleLine = true,
             visualTransformation = if (passVisible) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation(),

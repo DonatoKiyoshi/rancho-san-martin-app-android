@@ -19,4 +19,7 @@ sealed class Screen(val route: String) {
     object DetalleAnimal : Screen("detalle_animal/{arete}") {
         fun createRoute(arete: String) = "detalle_animal/$arete"
     }
+    object DetalleAprobacionAnimal : Screen("detalle_aprobacion_animal/{arete}") {
+        fun createRoute(arete: String) = "detalle_aprobacion_animal/$arete"
+    }
 }

@@ -140,7 +140,7 @@ fun GanadoListScreen(
         ) {
             BarcodeScannerScreen(
                 onResult = { result ->
-                    query = result
+                    query = result.filter { it.isDigit() }.take(15)
                     mostrarScanner = false
                 },
                 onBack = { mostrarScanner = false }
@@ -432,7 +432,7 @@ private fun AnimalRow(animal: Animal, rangoLabel: String, isArchived: Boolean = 
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AreteTag(animal.numeroArete); Spacer(Modifier.width(8.dp))
+                AreteTag(animal.numeroArete, animal.tipoArete); Spacer(Modifier.width(8.dp))
                 Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(50)) {
                     Text(text = rangoLabel, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }

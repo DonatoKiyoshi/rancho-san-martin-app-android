@@ -3,11 +3,13 @@ package com.rancho.gestion.ui.reportes
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
+import com.rancho.gestion.R
 import com.rancho.gestion.ui.components.HomeTopBar
 import com.rancho.gestion.ui.components.MenuOptionCard
 import com.rancho.gestion.ui.theme.RanchoPrimary
@@ -28,7 +30,7 @@ fun ReportesMenuScreen(onOpenDrawer: () -> Unit, onGanado: () -> Unit, onFinanza
             Spacer(Modifier.height(4.dp))
             MenuOptionCard(
                 label = "Ganado",
-                icon = Icons.Default.Pets,
+                icon = ImageVector.vectorResource(id = R.drawable.ic_menu_ganado),
                 accentColor = RanchoPrimary,
                 subtitle = "Entradas, ventas y muertes por periodo",
                 onClick = onGanado

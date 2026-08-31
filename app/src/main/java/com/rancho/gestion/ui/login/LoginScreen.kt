@@ -205,16 +205,6 @@ private fun LoginContent(
                 }
             }
 
-            Spacer(Modifier.height(40.dp))
-
-            Text(
-                "Cuentas de prueba\nadmin / admin123\nempleado / empleado123",
-                fontSize = 11.sp,
-                color = SanMartinCream.copy(alpha = 0.4f),
-                textAlign = TextAlign.Center,
-                lineHeight = 16.sp
-            )
-            
             Spacer(Modifier.height(30.dp))
         }
     }

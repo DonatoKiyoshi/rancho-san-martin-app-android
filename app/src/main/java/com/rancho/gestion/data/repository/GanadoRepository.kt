@@ -32,6 +32,7 @@ class GanadoRepository(
     /* ---------- Entrada de Ganado (CU-02) ---------- */
     suspend fun registrarAnimal(
         arete: String,
+        tipoArete: TipoArete = TipoArete.SADER,
         color: String,
         sexo: Sexo,
         peso: Double,
@@ -41,8 +42,15 @@ class GanadoRepository(
         idUsuario: Long,
         esAdmin: Boolean
     ): ResultadoOperacion {
-        if (!arete.startsWith("484")) return ResultadoOperacion.Error("El arete debe comenzar con el prefijo 484")
-        if (arete.length > 15) return ResultadoOperacion.Error("El arete no debe exceder los 15 dígitos")
+        // Validaciones según Tipo de Arete
+        if (tipoArete == TipoArete.SADER) {
+            if (!arete.startsWith("484")) return ResultadoOperacion.Error("El arete SADER debe comenzar con el prefijo 484")
+            if (arete.length != 15) return ResultadoOperacion.Error("El arete SADER debe tener exactamente 15 dígitos")
+        } else {
+            if (arete.length > 6) return ResultadoOperacion.Error("El arete GENÉRICO no puede tener más de 6 dígitos")
+            if (arete.isEmpty()) return ResultadoOperacion.Error("El arete es obligatorio")
+        }
+        
         if (arete.any { !it.isDigit() }) return ResultadoOperacion.Error("El arete debe ser estrictamente numérico")
         
         // Regla: Si ya existe (Aprobado o Pendiente), avisar
@@ -57,6 +65,7 @@ class GanadoRepository(
 
         val animal = Animal(
             numeroArete = arete,
+            tipoArete = tipoArete,
             color = color,
             sexo = sexo,
             proveedor = proveedor,
@@ -180,6 +189,17 @@ class GanadoRepository(
     }
 
     suspend fun eliminarAnimal(animal: Animal) = animalDao.delete(animal)
+
+    suspend fun actualizarFoto(arete: String, path: String?) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        val animal = animalDao.getByArete(arete)
+        if (animal != null) {
+            animalDao.update(animal.copy(
+                fotografiaLocal = path,
+                fotografiaLocalDisponible = path != null,
+                fechaActualizacion = System.currentTimeMillis()
+            ))
+        }
+    }
 
     suspend fun getMortalidadAprobada(arete: String): Mortalidad? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         mortalidadDao.getMortalidadAprobadaPorArete(arete)

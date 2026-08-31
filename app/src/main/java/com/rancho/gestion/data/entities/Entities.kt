@@ -14,6 +14,8 @@ enum class Rol { ADMINISTRADOR, EMPLEADO }
 
 enum class Sexo { MACHO, HEMBRA }
 
+enum class TipoArete { SADER, OTRO }
+
 enum class FaseGanado { ACOPIO, DESARROLLO }
 
 enum class EstadoInventario { ACTIVO, VENDIDO, MUERTO }
@@ -52,6 +54,7 @@ data class Usuario(
 )
 data class Animal(
     @PrimaryKey @ColumnInfo(name = "numero_arete") val numeroArete: String, // Validar prefijo 484
+    @ColumnInfo(name = "tipo_arete") val tipoArete: TipoArete = TipoArete.SADER,
     val color: String,
     val sexo: Sexo,
     val proveedor: String,
