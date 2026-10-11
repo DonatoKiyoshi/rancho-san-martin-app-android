@@ -30,7 +30,19 @@ object DateUtils {
         return cal.timeInMillis
     }
 
-    /** Devuelve el rango [desde, hasta] de milisegundos para el periodo dado, terminando "ahora". */
+    /** Último día (23:59:59.999) del mes que contiene [millis]. */
+    fun finDeMes(millis: Long = System.currentTimeMillis()): Long {
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = millis
+        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        return cal.timeInMillis
+    }
+
+    /** Devuelve el rango [desde, hasta] de milisegundos para el periodo dado. */
     fun rangoPara(periodo: Periodo, ahora: Long = System.currentTimeMillis()): Pair<Long, Long> {
         val cal = Calendar.getInstance()
         cal.timeInMillis = ahora
@@ -38,20 +50,34 @@ object DateUtils {
             Periodo.DIARIO -> {
                 cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
                 cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+                val desde = cal.timeInMillis
+                cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59)
+                cal.set(Calendar.SECOND, 59); cal.set(Calendar.MILLISECOND, 999)
+                return desde to cal.timeInMillis
             }
             Periodo.SEMANAL -> {
                 cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
                 cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
                 cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+                val desde = cal.timeInMillis
+                cal.add(Calendar.DAY_OF_WEEK, 6)
+                cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59)
+                cal.set(Calendar.SECOND, 59); cal.set(Calendar.MILLISECOND, 999)
+                return desde to cal.timeInMillis
             }
-            Periodo.MENSUAL -> return inicioDeMes(ahora) to ahora
+            Periodo.MENSUAL -> return inicioDeMes(ahora) to finDeMes(ahora)
             Periodo.ANUAL -> {
                 cal.set(Calendar.DAY_OF_YEAR, 1)
                 cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0)
                 cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+                val desde = cal.timeInMillis
+                cal.set(Calendar.MONTH, 11)
+                cal.set(Calendar.DAY_OF_MONTH, 31)
+                cal.set(Calendar.HOUR_OF_DAY, 23); cal.set(Calendar.MINUTE, 59)
+                cal.set(Calendar.SECOND, 59); cal.set(Calendar.MILLISECOND, 999)
+                return desde to cal.timeInMillis
             }
         }
-        return cal.timeInMillis to ahora
     }
 
     fun añosAtras(anios: Int, desde: Long = System.currentTimeMillis()): Long {
@@ -59,5 +85,82 @@ object DateUtils {
         cal.timeInMillis = desde
         cal.add(Calendar.YEAR, -anios)
         return cal.timeInMillis
+    }
+
+    /** Rango para un día específico */
+    fun rangoDiaEspecifico(anio: Int, mes: Int, dia: Int): Pair<Long, Long> {
+        val cal = Calendar.getInstance()
+        cal.set(anio, mes, dia, 0, 0, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val start = cal.timeInMillis
+        cal.set(anio, mes, dia, 23, 59, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val end = cal.timeInMillis
+        return start to end
+    }
+
+    /** Rango para una semana específica de un mes. La semana 1 es la que contiene el 1er día del mes. */
+    fun rangoSemanaEspecifica(anio: Int, mes: Int, semanaDelMes: Int): Pair<Long, Long> {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.YEAR, anio)
+        cal.set(Calendar.MONTH, mes)
+        cal.set(Calendar.WEEK_OF_MONTH, semanaDelMes)
+        cal.set(Calendar.DAY_OF_WEEK, cal.firstDayOfWeek)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val start = cal.timeInMillis
+
+        cal.add(Calendar.DAY_OF_WEEK, 6)
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val end = cal.timeInMillis
+        return start to end
+    }
+
+    /** Rango para un mes específico */
+    fun rangoMesEspecifico(anio: Int, mes: Int): Pair<Long, Long> {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.YEAR, anio)
+        cal.set(Calendar.MONTH, mes)
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val start = cal.timeInMillis
+
+        cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val end = cal.timeInMillis
+        return start to end
+    }
+
+    /** Rango para un año completo específico */
+    fun rangoAnioEspecifico(anio: Int): Pair<Long, Long> {
+        val cal = Calendar.getInstance()
+        cal.set(Calendar.YEAR, anio)
+        cal.set(Calendar.MONTH, Calendar.JANUARY)
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        val start = cal.timeInMillis
+
+        cal.set(Calendar.MONTH, Calendar.DECEMBER)
+        cal.set(Calendar.DAY_OF_MONTH, 31)
+        cal.set(Calendar.HOUR_OF_DAY, 23)
+        cal.set(Calendar.MINUTE, 59)
+        cal.set(Calendar.SECOND, 59)
+        cal.set(Calendar.MILLISECOND, 999)
+        val end = cal.timeInMillis
+        return start to end
     }
 }

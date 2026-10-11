@@ -14,6 +14,7 @@ class VentaRepository(
     private val mortalidadDao: MortalidadDao
 ) {
     fun getVentas(): Flow<List<Venta>> = ventaDao.getAllVentas()
+    fun getTodosLosDetalles(): Flow<List<DetalleVenta>> = ventaDao.getAllDetalles()
     fun getJaulasAbiertas(): Flow<List<Venta>> = ventaDao.getJaulasAbiertas()
     fun getDetalles(ventaId: Long): Flow<List<DetalleVenta>> = ventaDao.getDetallesPorVenta(ventaId)
     fun getCandidatos(): Flow<List<Animal>> = animalDao.getActivosDisponibles()

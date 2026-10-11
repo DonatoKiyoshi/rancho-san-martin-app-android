@@ -1,24 +1,32 @@
 package com.rancho.gestion.ui.configuracion
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import com.rancho.gestion.AppContainer
 import com.rancho.gestion.data.entities.RangoPeso
 import com.rancho.gestion.data.repository.ResultadoOperacion
@@ -27,13 +35,9 @@ import com.rancho.gestion.ui.components.InfoDialog
 import com.rancho.gestion.ui.components.MenuOptionCard
 import com.rancho.gestion.ui.components.SectionCard
 import com.rancho.gestion.ui.theme.RanchoPrimary
-import com.rancho.gestion.ui.theme.RanchoTextSecondary
+import com.rancho.gestion.ui.theme.SanMartinOrange
 import com.rancho.gestion.util.SessionManager
 import kotlinx.coroutines.launch
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 
 @Composable
 fun ConfiguracionScreen(
@@ -46,10 +50,27 @@ fun ConfiguracionScreen(
     val scope = rememberCoroutineScope()
     val usuario by SessionManager.usuarioActual.collectAsState()
 
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity
+    val biometricAuthManager = container.biometricAuthManager
+
+    var biometricEnabled by remember { mutableStateOf(biometricAuthManager.isBiometricEnabled()) }
+    val biometricAvailable = remember { biometricAuthManager.isBiometricAvailable() }
+
+    // Estados para dialogo de confirmacion del switch biometrico
+    var mostrarDialogoConfirmacionBiometria by remember { mutableStateOf(false) }
+    var estadoBiometricoDeseado by remember { mutableStateOf(false) }
+
     ConfiguracionContent(
         rangos = rangos,
         isAdmin = isAdmin,
         idUsuarioActual = usuario?.idUsuario ?: -1L,
+        biometricAvailable = biometricAvailable,
+        biometricEnabled = biometricEnabled,
+        onRequestToggleBiometric = { estadoDeseado ->
+            estadoBiometricoDeseado = estadoDeseado
+            mostrarDialogoConfirmacionBiometria = true
+        },
         onOpenDrawer = onOpenDrawer,
         onNavigateToUsuarios = onNavigateToUsuarios,
         onAgregarRango = { nombre, min, max ->
@@ -61,10 +82,76 @@ fun ConfiguracionScreen(
         onChangePassword = { actual, nueva ->
             val user = usuario
             if (user != null) {
-                container.authRepository.cambiarContrasena(user, actual, nueva)
+                val ok = container.authRepository.cambiarContrasena(user, actual, nueva)
+                if (ok && biometricAuthManager.isBiometricEnabled()) {
+                    val userActualizado = container.authRepository.getUsuarioById(user.idUsuario)
+                    if (userActualizado != null) {
+                        biometricAuthManager.saveCredentials(userActualizado.nombreUsuario, userActualizado.passwordHash)
+                    }
+                }
+                ok
             } else false
         }
     )
+
+    // Diálogo de confirmación antes de activar o desactivar la biometría
+    if (mostrarDialogoConfirmacionBiometria) {
+        val esActivar = estadoBiometricoDeseado
+        AlertDialog(
+            onDismissRequest = { mostrarDialogoConfirmacionBiometria = false },
+            title = {
+                Text(if (esActivar) "¿Activar acceso biométrico?" else "¿Desactivar acceso biométrico?")
+            },
+            text = {
+                Text(
+                    if (esActivar) {
+                        "¿Deseas activar el inicio de sesión con tu huella dactilar o reconocimiento facial? Tus credenciales se guardarán de forma segura en este dispositivo."
+                    } else {
+                        "¿Deseas desactivar el inicio de sesión biométrico? Se eliminarán las credenciales guardadas en este dispositivo y tendrás que ingresar tu usuario y contraseña manualmente."
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        mostrarDialogoConfirmacionBiometria = false
+                        if (esActivar) {
+                            val user = usuario
+                            if (user != null && activity != null) {
+                                // Solicitamos escanear la huella o rostro para confirmar la activación
+                                biometricAuthManager.autenticar(
+                                    activity = activity,
+                                    title = "Confirmar Activación Biométrica",
+                                    subtitle = "Escanea tu huella o rostro para habilitar la opción",
+                                    onSuccess = {
+                                        biometricAuthManager.saveCredentials(user.nombreUsuario, user.passwordHash)
+                                        biometricEnabled = true
+                                    }
+                                )
+                            } else if (user != null) {
+                                biometricAuthManager.saveCredentials(user.nombreUsuario, user.passwordHash)
+                                biometricEnabled = true
+                            }
+                        } else {
+                            biometricAuthManager.clearCredentials()
+                            biometricEnabled = false
+                        }
+                    }
+                ) {
+                    Text(
+                        if (esActivar) "Sí, activar" else "Sí, desactivar",
+                        color = if (esActivar) SanMartinOrange else MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { mostrarDialogoConfirmacionBiometria = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -72,6 +159,9 @@ private fun ConfiguracionContent(
     rangos: List<RangoPeso>,
     isAdmin: Boolean,
     idUsuarioActual: Long,
+    biometricAvailable: Boolean,
+    biometricEnabled: Boolean,
+    onRequestToggleBiometric: (Boolean) -> Unit,
     onOpenDrawer: () -> Unit,
     onNavigateToUsuarios: () -> Unit,
     onAgregarRango: suspend (String, Double, Double) -> ResultadoOperacion,
@@ -85,8 +175,7 @@ private fun ConfiguracionContent(
     var mostrarAlertaLimiteRangos by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     
-    // Estado para controlar qué sección está expandida
-    var seccionExpandida by remember { mutableStateOf<String?>(null) } // "rangos" o "password"
+    var seccionExpandida by remember { mutableStateOf<String?>(null) }
 
     Scaffold(topBar = { HomeTopBar(title = "Configuración", onHomeClick = onOpenDrawer) }) { padding ->
         Column(
@@ -102,6 +191,57 @@ private fun ConfiguracionContent(
                     icon = Icons.Default.Group,
                     onClick = onNavigateToUsuarios
                 )
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // SECCIÓN: Inicio de Sesión Biométrico (Huella / Rostro)
+            if (biometricAvailable) {
+                SectionCard {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onRequestToggleBiometric(!biometricEnabled) },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Fingerprint,
+                                contentDescription = null,
+                                tint = SanMartinOrange,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Inicio de Sesión Biométrico",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = "Accede con tu huella dactilar o reconocimiento facial registrado en tu dispositivo",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Switch(
+                            checked = biometricEnabled,
+                            onCheckedChange = { nuevoEstado ->
+                                onRequestToggleBiometric(nuevoEstado)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                checkedTrackColor = SanMartinOrange
+                            )
+                        )
+                    }
+                }
                 Spacer(Modifier.height(16.dp))
             }
 
@@ -331,7 +471,7 @@ private fun CambiarContrasenaCard(onChangePassword: suspend (String, String) -> 
                     else -> scope.launch {
                         val ok = onChangePassword(actual, nueva)
                         esError = !ok
-                        mensaje = if (ok) "Contraseña actualizada correctamente." else "La contraseña actual es incorrecta."
+                        mensaje = if (ok) "Contraseña actualizada correctamente." else "La contraseña actual is incorrecta."
                         if (ok) { actual = ""; nueva = ""; confirmar = "" }
                     }
                 }
@@ -357,6 +497,9 @@ fun ConfiguracionPreview() {
             ),
             isAdmin = true,
             idUsuarioActual = 1L,
+            biometricAvailable = true,
+            biometricEnabled = true,
+            onRequestToggleBiometric = {},
             onOpenDrawer = {},
             onAgregarRango = { _, _, _ -> ResultadoOperacion.Ok },
             onEliminarRango = {},

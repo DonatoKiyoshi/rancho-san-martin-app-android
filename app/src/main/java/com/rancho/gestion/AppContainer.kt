@@ -4,8 +4,12 @@ import android.content.Context
 import com.rancho.gestion.data.AppDatabase
 import com.rancho.gestion.data.repository.*
 
+import com.rancho.gestion.util.BiometricAuthManager
+
 class AppContainer(context: Context) {
     private val database = AppDatabase.getInstance(context)
+
+    val biometricAuthManager = BiometricAuthManager(context)
 
     val authRepository = AuthRepository(database.usuarioDao())
     

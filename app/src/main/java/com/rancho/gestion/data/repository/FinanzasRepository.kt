@@ -12,6 +12,8 @@ class FinanzasRepository(private val egresoDao: EgresoDao) {
 
     fun porRango(desde: Long, hasta: Long): Flow<List<Egreso>> = egresoDao.getEgresosPorRango(desde, hasta)
     
+    fun getPrimeraFechaEgreso(): Flow<Long?> = egresoDao.getPrimeraFechaEgreso()
+
     suspend fun porRangoOnce(desde: Long, hasta: Long): List<Egreso> = egresoDao.getEgresosPorRangoOnce(desde, hasta)
 
     fun totalPorRango(desde: Long, hasta: Long): Flow<Double> = egresoDao.getTotalPorRango(desde, hasta)
@@ -49,6 +51,15 @@ class FinanzasRepository(private val egresoDao: EgresoDao) {
         }
         
         return ResultadoOperacion.Ok
+    }
+
+    suspend fun eliminarEgreso(egreso: Egreso): ResultadoOperacion {
+        return try {
+            egresoDao.delete(egreso)
+            ResultadoOperacion.Ok
+        } catch (e: Exception) {
+            ResultadoOperacion.Error("Error al eliminar egreso: ${e.message}")
+        }
     }
 
     /* ---------- Validación de Fecha de Corte (PROC-04) ---------- */

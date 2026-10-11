@@ -38,6 +38,8 @@ class AuthRepository(private val usuarioDao: UsuarioDao) {
 
     suspend fun getUsuarioById(id: Long): Usuario? = usuarioDao.getById(id)
 
+    suspend fun getUsuarioByUsername(username: String): Usuario? = usuarioDao.getByUsername(username.trim().lowercase())
+
     suspend fun registrarUsuario(usuario: Usuario) {
         usuarioDao.insert(usuario.copy(
             nombreUsuario = usuario.nombreUsuario.trim().lowercase(),

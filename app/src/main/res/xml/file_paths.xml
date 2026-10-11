@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Rutas expuestas via FileProvider para que la camara del sistema pueda
-    escribir la fotografia de un animal (RegistrarAnimalScreen) sin exponer
-    rutas absolutas de archivo (requerido desde Android 7 / API 24 en
-    adelante para compartir URIs entre apps de forma segura).
--->
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="fotos_ganado" path="fotos_ganado/" />
     <files-path name="fotos_ganado_files" path="fotos_ganado/" />
+    <cache-path name="reportes" path="reportes/" />
+    <cache-path name="cache_files" path="." />
 </paths>

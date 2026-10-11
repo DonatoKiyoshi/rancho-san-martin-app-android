@@ -13,8 +13,8 @@ android {
         applicationId = "com.rancho.gestion.debug"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.1.0"
+        versionCode = 2
+        versionName = "1.1.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
@@ -84,6 +84,10 @@ dependencies {
     // Splash screen de marca (API 21+), usada en MainActivity.
     implementation("androidx.core:core-splashscreen:1.0.1")
 
+    // Autenticación biométrica y cifrado seguro de credenciales
+    implementation("androidx.biometric:biometric-ktx:1.2.0-alpha05")
+    implementation("androidx.security:security-crypto:1.1.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // Pruebas unitarias de la logica pura de negocio (domain/BusinessLogic.kt).
@@ -96,4 +100,8 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.4.0")
     implementation("androidx.camera:camera-view:1.4.0")
     implementation("androidx.graphics:graphics-path:1.1.0")
+
+    // --- Apache POI para Excel ---
+    implementation("org.apache.poi:poi:5.2.3")
+    implementation("org.apache.poi:poi-ooxml:5.2.3")
 }

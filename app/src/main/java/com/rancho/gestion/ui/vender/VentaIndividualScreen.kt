@@ -276,7 +276,7 @@ private fun VentaIndividualStatelessContent(
                 val pesoD = peso.toDoubleOrNull()
                 val precioD = precio.toDoubleOrNull()
                 when {
-                    areteTrim.length != 15 -> error = "El arete debe tener exactamente 15 dígitos"
+                    areteTrim.isBlank() -> error = "El arete es obligatorio"
                     compradorTrim.isBlank() -> error = "El comprador es obligatorio"
                     pesoD == null || pesoD < 40 || pesoD > 1000 -> error = "El peso debe estar entre 40kg y 1,000kg"
                     precioD == null || precioD < 500 || precioD > 100000 -> error = "El monto debe estar entre $500 y $100,000"

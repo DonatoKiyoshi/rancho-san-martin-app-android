@@ -82,6 +82,9 @@ interface VentaDao {
     @Query("SELECT * FROM ventas ORDER BY fecha_venta DESC")
     fun getAllVentas(): Flow<List<Venta>>
 
+    @Query("SELECT * FROM detalle_venta")
+    fun getAllDetalles(): Flow<List<DetalleVenta>>
+
     @Query("SELECT * FROM ventas WHERE id_venta = :id LIMIT 1")
     suspend fun getVentaById(id: Long): Venta?
 
@@ -144,6 +147,12 @@ interface EgresoDao {
 
     @Insert
     suspend fun insertNomina(nomina: NominaDetalle)
+
+    @Delete
+    suspend fun delete(egreso: Egreso)
+
+    @Query("SELECT MIN(fecha_egreso) FROM egresos")
+    fun getPrimeraFechaEgreso(): Flow<Long?>
 
     @Query("SELECT * FROM egresos WHERE fecha_egreso BETWEEN :desde AND :hasta ORDER BY fecha_egreso DESC")
     fun getEgresosPorRango(desde: Long, hasta: Long): Flow<List<Egreso>>

@@ -5,9 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
@@ -18,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -27,8 +29,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import com.rancho.gestion.AppContainer
 import com.rancho.gestion.R
+import com.rancho.gestion.data.entities.Usuario
 import com.rancho.gestion.ui.theme.SanMartinCream
 import com.rancho.gestion.ui.theme.SanMartinOrange
 import com.rancho.gestion.util.SessionManager
@@ -41,9 +45,67 @@ fun LoginScreen(container: AppContainer, onLoginSuccess: () -> Unit) {
     var passwordVisible by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
+
+    // Estados para dialogo de activacion biométrica tras login exitoso
+    var usuarioPendienteLogin by remember { mutableStateOf<Usuario?>(null) }
+    var mostrarDialogoBiometria by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity
+    val biometricAuthManager = container.biometricAuthManager
     val scope = rememberCoroutineScope()
 
-    fun intentarLogin() {
+    val biometricAvailable = remember { biometricAuthManager.isBiometricAvailable() }
+    val biometricEnabled = remember { biometricAuthManager.isBiometricEnabled() }
+
+    fun ejecutarLoginBiometrico() {
+        if (activity == null) return
+        val savedUsername = biometricAuthManager.getSavedUsername() ?: return
+
+        biometricAuthManager.autenticar(
+            activity = activity,
+            title = "Inicio de Sesión Biométrico",
+            subtitle = "Escanea tu huella o rostro para ingresar",
+            onSuccess = {
+                scope.launch {
+                    val userEncontrado = container.authRepository.getUsuarioByUsername(savedUsername)
+
+                    if (userEncontrado != null) {
+                        // Sincronizamos la credencial cifrada con la cuenta
+                        biometricAuthManager.saveCredentials(userEncontrado.nombreUsuario, userEncontrado.passwordHash)
+                        SessionManager.login(userEncontrado)
+                        kotlinx.coroutines.delay(150) // Permite que el diálogo nativo de BiometricPrompt se cierre limpiamente
+                        onLoginSuccess()
+                    } else {
+                        error = "No se pudo recuperar la sesión biométrica. Inicia sesión manualmente."
+                        biometricAuthManager.clearCredentials()
+                    }
+                }
+            },
+            onError = { msg ->
+                error = msg
+            }
+        )
+    }
+
+    // Si la biometría está habilitada, intentamos sugerir el login biométrico automáticamente al abrir
+    LaunchedEffect(Unit) {
+        if (biometricAvailable && biometricEnabled && biometricAuthManager.getSavedUsername() != null) {
+            ejecutarLoginBiometrico()
+        }
+    }
+
+    fun completarLoginExitoso(usuario: Usuario) {
+        if (biometricAvailable && !biometricAuthManager.hasBeenAskedBiometric()) {
+            usuarioPendienteLogin = usuario
+            mostrarDialogoBiometria = true
+        } else {
+            SessionManager.login(usuario)
+            onLoginSuccess()
+        }
+    }
+
+    fun intentarLoginManual() {
         if (username.isBlank() || password.isBlank()) {
             error = "Ingresa usuario y contraseña"
             return
@@ -53,12 +115,56 @@ fun LoginScreen(container: AppContainer, onLoginSuccess: () -> Unit) {
             val usuario = container.authRepository.login(username, password)
             loading = false
             if (usuario != null) {
-                SessionManager.login(usuario)
-                onLoginSuccess()
+                completarLoginExitoso(usuario)
             } else {
                 error = "Usuario o contraseña incorrectos"
             }
         }
+    }
+
+    // Diálogo de confirmación al iniciar sesión por primera vez
+    if (mostrarDialogoBiometria && usuarioPendienteLogin != null) {
+        AlertDialog(
+            onDismissRequest = {
+                val user = usuarioPendienteLogin!!
+                biometricAuthManager.markAskedBiometric(false)
+                mostrarDialogoBiometria = false
+                SessionManager.login(user)
+                onLoginSuccess()
+            },
+            title = { Text("¿Activar inicio de sesión biométrico?") },
+            text = {
+                Text(
+                    "¿Deseas guardar tus credenciales de acceso de forma segura para ingresar fácilmente usando tu huella dactilar o reconocimiento facial en tus próximos ingresos?"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val user = usuarioPendienteLogin!!
+                        biometricAuthManager.saveCredentials(user.nombreUsuario, user.passwordHash)
+                        mostrarDialogoBiometria = false
+                        SessionManager.login(user)
+                        onLoginSuccess()
+                    }
+                ) {
+                    Text("Sí, activar", color = SanMartinOrange, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        val user = usuarioPendienteLogin!!
+                        biometricAuthManager.markAskedBiometric(false)
+                        mostrarDialogoBiometria = false
+                        SessionManager.login(user)
+                        onLoginSuccess()
+                    }
+                ) {
+                    Text("Ahora no")
+                }
+            }
+        )
     }
 
     LoginContent(
@@ -70,7 +176,9 @@ fun LoginScreen(container: AppContainer, onLoginSuccess: () -> Unit) {
         onTogglePasswordVisibility = { passwordVisible = !passwordVisible },
         error = error,
         loading = loading,
-        onLoginClick = { intentarLogin() }
+        showBiometricButton = biometricAvailable && biometricEnabled && biometricAuthManager.getSavedUsername() != null,
+        onBiometricClick = { ejecutarLoginBiometrico() },
+        onLoginClick = { intentarLoginManual() }
     )
 }
 
@@ -84,11 +192,12 @@ private fun LoginContent(
     onTogglePasswordVisibility: () -> Unit,
     error: String?,
     loading: Boolean,
+    showBiometricButton: Boolean,
+    onBiometricClick: () -> Unit,
     onLoginClick: () -> Unit
 ) {
     val scrollState = rememberScrollState()
-    // Fondo gris oscuro profesional que resalta el logo transparente
-    val bgColor = Color(0xFF1A1C1E) 
+    val bgColor = Color(0xFF1A1C1E)
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -103,7 +212,7 @@ private fun LoginContent(
                 .verticalScroll(scrollState),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(60.dp))
+            Spacer(Modifier.height(50.dp))
 
             // PALABRA RANCHO SUPERIOR
             Text(
@@ -115,16 +224,14 @@ private fun LoginContent(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // LOGO ORIGINAL DESDE IMAGEN (PROC-21-FINAL)
+            // LOGO ORIGINAL
             Image(
                 painter = painterResource(id = R.drawable.logotransparente),
                 contentDescription = "Logo Rancho San Martín",
-                modifier = Modifier
-                    .size(width = 280.dp, height = 180.dp),
+                modifier = Modifier.size(width = 280.dp, height = 180.dp),
                 contentScale = ContentScale.Fit
             )
 
-            // NOMBRE DE LA MARCA (TEXTO COMPLEMENTARIO)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
@@ -143,7 +250,7 @@ private fun LoginContent(
                 Box(Modifier.width(30.dp).height(1.dp).background(SanMartinCream.copy(alpha = 0.6f)))
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
 
             Text(
                 text = "Inicie sesión para continuar",
@@ -152,7 +259,7 @@ private fun LoginContent(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
 
             LoginTextField(
                 value = username,
@@ -161,7 +268,7 @@ private fun LoginContent(
                 icon = Icons.Default.Person
             )
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(16.dp))
 
             LoginTextField(
                 value = password,
@@ -183,25 +290,53 @@ private fun LoginContent(
                 )
             }
 
-            Spacer(Modifier.height(36.dp))
+            Spacer(Modifier.height(28.dp))
 
-            // BOTÓN DE ACCIÓN PERSONALIZADO
-            Button(
-                onClick = onLoginClick,
-                enabled = !loading,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SanMartinOrange,
-                    contentColor = Color.White
-                ),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(58.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (loading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
-                } else {
-                    Text("INICIAR SESIÓN", fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                Button(
+                    onClick = onLoginClick,
+                    enabled = !loading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SanMartinOrange,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(58.dp)
+                ) {
+                    if (loading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("INICIAR SESIÓN", fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                    }
+                }
+
+                if (showBiometricButton) {
+                    Spacer(Modifier.width(12.dp))
+                    OutlinedButton(
+                        onClick = onBiometricClick,
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.height(58.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = SanMartinCream
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, SanMartinOrange)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Fingerprint,
+                            contentDescription = "Acceso Biométrico",
+                            tint = SanMartinOrange,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
                 }
             }
 
@@ -265,6 +400,8 @@ fun LoginPreview() {
             onTogglePasswordVisibility = {},
             error = null,
             loading = false,
+            showBiometricButton = true,
+            onBiometricClick = {},
             onLoginClick = {}
         )
     }
