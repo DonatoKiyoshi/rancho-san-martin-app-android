@@ -1,5 +1,7 @@
 package com.rancho.gestion.ui.finanzas
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,6 +13,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,21 +25,20 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.rancho.gestion.AppContainer
 import com.rancho.gestion.R
 import com.rancho.gestion.data.entities.CategoriaEgreso
 import com.rancho.gestion.data.entities.Egreso
 import com.rancho.gestion.data.repository.ResultadoOperacion
-import com.rancho.gestion.ui.components.HomeTopBar
 import com.rancho.gestion.ui.components.SimpleFormDialog
 import com.rancho.gestion.ui.components.ThousandsSeparatorVisualTransformation
-import com.rancho.gestion.ui.theme.RanchoCard
-import com.rancho.gestion.ui.theme.RanchoPrimary
 import com.rancho.gestion.ui.theme.RanchoTextSecondary
 import com.rancho.gestion.util.DateUtils
 import com.rancho.gestion.util.Periodo
@@ -63,7 +66,7 @@ data class CategoryStyle(
 
 fun getCategoryStyle(categoria: CategoriaEgreso): CategoryStyle = when (categoria) {
     CategoriaEgreso.NOMINA -> CategoryStyle(
-        accentColor = Color(0xFF10B981), // Esmeralda / Mención Verde
+        accentColor = Color(0xFF10B981), // Esmeralda / Verde
         containerColor = Color(0xFFECFDF5),
         iconRes = R.drawable.ic_nomina_finanzas
     )
@@ -78,12 +81,12 @@ fun getCategoryStyle(categoria: CategoriaEgreso): CategoryStyle = when (categori
         iconRes = R.drawable.ic_alimentos_finanzas
     )
     CategoriaEgreso.FARMACOS -> CategoryStyle(
-        accentColor = Color(0xFF8B5CF6), // Púrpura / Índigo
+        accentColor = Color(0xFF8B5CF6), // Púrpura / Íñdigo
         containerColor = Color(0xFFF5F3FF),
         iconRes = R.drawable.ic_farmacos_finanzas
     )
     CategoriaEgreso.OTROS -> CategoryStyle(
-        accentColor = Color(0xFF475569), // Pizarra / Gris Oscuro
+        accentColor = Color(0xFF64748B), // Pizarra / Azul-Gris
         containerColor = Color(0xFFF8FAFC),
         iconRes = R.drawable.ic_otros_finanzas
     )
@@ -193,6 +196,7 @@ fun FinanzasScreen(container: AppContainer, onOpenDrawer: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FinanzasContent(
     totales: TotalesFinanzas,
@@ -205,22 +209,64 @@ private fun FinanzasContent(
     onDeleteEgreso: (Egreso) -> Unit
 ) {
     Scaffold(
-        topBar = { HomeTopBar(title = "Finanzas", onHomeClick = onOpenDrawer) },
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Finanzas",
+                        style = TextStyle(
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF0F172A)
+                        )
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(
+                            Icons.Default.Home,
+                            contentDescription = "Menú",
+                            tint = Color(0xFF334155),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {}) {
+                        Icon(
+                            Icons.Default.CloudDone,
+                            contentDescription = "Sincronizado",
+                            tint = Color(0xFF64748B),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+            )
+        },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onRegistrarEgresoClick,
                 icon = { Icon(Icons.Default.Add, contentDescription = null, tint = Color.White) },
                 text = { Text("Registrar Egreso", fontWeight = FontWeight.Bold, color = Color.White) },
-                containerColor = Color(0xFF0891B2), // Ocean Teal
+                containerColor = Color(0xFF3B82F6), // Indigo/Blue Accent
                 shape = RoundedCornerShape(50)
             )
         }
     ) { padding ->
-        Column(Modifier.padding(padding).padding(horizontal = 20.dp)) {
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .padding(horizontal = 20.dp)
+        ) {
             Spacer(Modifier.height(8.dp))
-            
-            // Grid de Tarjetas de Totales (2x3)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+
+            // Grid de Tarjetas de Totales (2x3) con mayor espacio negativo (16.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 FinanzasStatCard(
                     titulo = "Total",
                     valor = currency.format(totales.total),
@@ -232,18 +278,20 @@ private fun FinanzasContent(
                     titulo = "Nómina",
                     valor = currency.format(totales.nomina),
                     iconRes = R.drawable.ic_nomina_finanzas,
-                    hasValue = totales.nomina > 0,
                     categoryStyle = getCategoryStyle(CategoriaEgreso.NOMINA),
                     modifier = Modifier.weight(1f)
                 )
             }
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Spacer(Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 FinanzasStatCard(
                     titulo = "Gasolina",
                     valor = currency.format(totales.gasolina),
                     iconRes = R.drawable.ic_gasolina_finanzas,
-                    hasValue = totales.gasolina > 0,
                     categoryStyle = getCategoryStyle(CategoriaEgreso.GASOLINA),
                     modifier = Modifier.weight(1f)
                 )
@@ -251,18 +299,20 @@ private fun FinanzasContent(
                     titulo = "Fármacos",
                     valor = currency.format(totales.farmacos),
                     iconRes = R.drawable.ic_farmacos_finanzas,
-                    hasValue = totales.farmacos > 0,
                     categoryStyle = getCategoryStyle(CategoriaEgreso.FARMACOS),
                     modifier = Modifier.weight(1f)
                 )
             }
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Spacer(Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 FinanzasStatCard(
                     titulo = "Alimento",
                     valor = currency.format(totales.alimento),
                     iconRes = R.drawable.ic_alimentos_finanzas,
-                    hasValue = totales.alimento > 0,
                     categoryStyle = getCategoryStyle(CategoriaEgreso.ALIMENTO),
                     modifier = Modifier.weight(1f)
                 )
@@ -270,35 +320,42 @@ private fun FinanzasContent(
                     titulo = "Otros",
                     valor = currency.format(totales.otros),
                     iconRes = R.drawable.ic_otros_finanzas,
-                    hasValue = totales.otros > 0,
                     categoryStyle = getCategoryStyle(CategoriaEgreso.OTROS),
                     modifier = Modifier.weight(1f)
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
-            Text("Movimientos del mes de (${DateUtils.formatMonth(fechaActual)})", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(28.dp))
+
+            Text(
+                text = "Movimientos del mes de ${DateUtils.formatMonth(fechaActual)}",
+                style = TextStyle(
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF0F172A)
+                )
+            )
+            Spacer(Modifier.height(14.dp))
 
             if (egresosRecientes.isEmpty()) {
                 Text(
-                    "Aún no hay egresos registrados este mes.",
+                    text = "Aún no hay egresos registrados este mes.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = RanchoTextSecondary
+                    color = Color(0xFF64748B)
                 )
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(egresosRecientes, key = { it.idEgreso }) { egreso ->
-                    // Validación de Fecha de Corte (CU-17 / PROC-04)
                     val calActual = Calendar.getInstance()
                     val calEgreso = Calendar.getInstance().apply { timeInMillis = egreso.fechaEgreso }
                     val esCorteVigente = calActual.get(Calendar.MONTH) == calEgreso.get(Calendar.MONTH) &&
                                        calActual.get(Calendar.YEAR) == calEgreso.get(Calendar.YEAR)
 
                     EgresoRow(
-                        egreso = egreso, 
-                        currency = currency, 
-                        canDelete = isAdmin && esCorteVigente, 
+                        egreso = egreso,
+                        currency = currency,
+                        canDelete = isAdmin && esCorteVigente,
                         onDelete = { onDeleteEgreso(egreso) }
                     )
                 }
@@ -315,49 +372,19 @@ private fun FinanzasStatCard(
     iconRes: Int,
     modifier: Modifier = Modifier,
     isTotal: Boolean = false,
-    hasValue: Boolean = false,
     categoryStyle: CategoryStyle? = null
 ) {
     val shape = RoundedCornerShape(22.dp)
 
-    val cardBgColor = if (isTotal) {
-        Color.Transparent
-    } else if (hasValue && categoryStyle != null) {
-        categoryStyle.containerColor
-    } else {
-        Color(0xFFECEFF3)
-    }
-
-    val textColor = if (isTotal) {
-        Color.White
-    } else if (hasValue && categoryStyle != null) {
-        categoryStyle.accentColor
-    } else {
-        Color(0xFF334155)
-    }
-
-    val labelColor = if (isTotal) {
-        Color.White.copy(alpha = 0.85f)
-    } else if (hasValue && categoryStyle != null) {
-        categoryStyle.accentColor.copy(alpha = 0.85f)
-    } else {
-        Color(0xFF64748B)
-    }
-
-    val iconTint = if (isTotal) {
-        Color.White.copy(alpha = 0.9f)
-    } else if (hasValue && categoryStyle != null) {
-        categoryStyle.accentColor
-    } else {
-        Color(0xFF8C9BA5)
-    }
-
-    ElevatedCard(
+    Card(
         modifier = modifier.fillMaxWidth(),
         shape = shape,
-        colors = CardDefaults.elevatedCardColors(containerColor = cardBgColor),
-        elevation = CardDefaults.elevatedCardElevation(
-            defaultElevation = if (isTotal) 4.dp else if (hasValue) 2.dp else 1.dp
+        colors = CardDefaults.cardColors(
+            containerColor = if (isTotal) Color.Transparent else Color.White
+        ),
+        border = if (isTotal) null else BorderStroke(1.dp, Color(0xFFF1F5F9)),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isTotal) 6.dp else 2.dp
         )
     ) {
         Box(
@@ -372,28 +399,33 @@ private fun FinanzasStatCard(
                         )
                     } else Modifier
                 )
-                .padding(horizontal = 16.dp, vertical = 18.dp)
+                .heightIn(min = 100.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             Column(modifier = Modifier.align(Alignment.TopStart)) {
                 Text(
                     text = valor,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = textColor
+                    style = TextStyle(
+                        fontSize = if (isTotal) 22.sp else 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isTotal) Color.White else Color(0xFF0F172A)
+                    )
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = titulo,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = labelColor,
-                    fontWeight = FontWeight.Medium
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isTotal) Color.White.copy(alpha = 0.85f) else Color(0xFF64748B)
+                    )
                 )
             }
 
             Icon(
                 imageVector = ImageVector.vectorResource(id = iconRes),
                 contentDescription = null,
-                tint = iconTint,
+                tint = if (isTotal) Color.White.copy(alpha = 0.85f) else (categoryStyle?.accentColor ?: Color(0xFF64748B)),
                 modifier = Modifier
                     .size(32.dp)
                     .align(Alignment.BottomEnd)
@@ -403,19 +435,25 @@ private fun FinanzasStatCard(
 }
 
 @Composable
-private fun EgresoRow(egreso: Egreso, currency: NumberFormat, canDelete: Boolean, onDelete: () -> Unit) {
+private fun EgresoRow(
+    egreso: Egreso,
+    currency: NumberFormat,
+    canDelete: Boolean,
+    onDelete: () -> Unit
+) {
     val style = getCategoryStyle(egreso.categoria)
 
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp)
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -423,18 +461,18 @@ private fun EgresoRow(egreso: Egreso, currency: NumberFormat, canDelete: Boolean
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Icono circular con color característico de la categoría
+                // Contenedor circular suave translúcido con icono minimalista
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(style.accentColor),
+                        .background(style.containerColor),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = ImageVector.vectorResource(id = style.iconRes),
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = style.accentColor,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -443,22 +481,19 @@ private fun EgresoRow(egreso: Egreso, currency: NumberFormat, canDelete: Boolean
 
                 Column {
                     Text(
-                        categoriaLabel(egreso.categoria),
+                        text = categoriaLabel(egreso.categoria),
                         fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        style = TextStyle(fontSize = 16.sp, color = Color(0xFF0F172A))
                     )
-                    if (egreso.descripcion.isNotBlank()) {
-                        Text(
-                            egreso.descripcion,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Spacer(Modifier.height(2.dp))
+                    val detailText = if (egreso.descripcion.isNotBlank()) {
+                        "${egreso.descripcion} • ${DateUtils.formatDay(egreso.fechaEgreso)}"
+                    } else {
+                        DateUtils.formatDay(egreso.fechaEgreso)
                     }
                     Text(
-                        DateUtils.formatDay(egreso.fechaEgreso),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = RanchoTextSecondary
+                        text = detailText,
+                        style = TextStyle(fontSize = 13.sp, color = Color(0xFF64748B))
                     )
                 }
             }
@@ -467,10 +502,9 @@ private fun EgresoRow(egreso: Egreso, currency: NumberFormat, canDelete: Boolean
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    currency.format(egreso.montoTotal),
-                    fontWeight = FontWeight.ExtraBold,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = style.accentColor
+                    text = currency.format(egreso.montoTotal),
+                    fontWeight = FontWeight.Bold,
+                    style = TextStyle(fontSize = 16.sp, color = style.accentColor)
                 )
 
                 if (canDelete) {
@@ -530,7 +564,6 @@ private fun RegistrarEgresoDialog(
                 error = "Completa los datos del empleado"
             } else {
                 scope.launch {
-                    // Si es nómina, autogeneramos la descripción. Si no, usamos la proporcionada.
                     val descFinal = if (categoria == CategoriaEgreso.NOMINA) {
                         "${empleadoNombre.trim()} trabajó $diasTrabajo días"
                     } else {
@@ -618,7 +651,6 @@ private fun RegistrarEgresoDialog(
             modifier = Modifier.fillMaxWidth()
         )
 
-        // El campo descripción desaparece si la categoría es Nómina
         if (categoria != CategoriaEgreso.NOMINA) {
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
@@ -632,7 +664,7 @@ private fun RegistrarEgresoDialog(
                 modifier = Modifier.fillMaxWidth()
             )
         }
-        
+
         error?.let {
             Spacer(Modifier.height(8.dp))
             Text(it, color = MaterialTheme.colorScheme.error)

@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Female
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Male
-import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Save
@@ -45,6 +44,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -543,11 +543,6 @@ private fun ReportesGanadoContent(
     val pagerState = rememberPagerState(pageCount = { 2 })
     val scope = rememberCoroutineScope()
 
-    var dashboardVisible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        dashboardVisible = true
-    }
-
     Scaffold(
         topBar = {
             BackTopBar(
@@ -665,7 +660,7 @@ private fun ReportesGanadoContent(
                                     .padding(32.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Icon(Icons.Default.Pets, contentDescription = null, tint = Color(0xFF5D8795), modifier = Modifier.size(48.dp))
+                                Icon(ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder), contentDescription = null, tint = Color(0xFF5D8795), modifier = Modifier.size(48.dp))
                                 Spacer(Modifier.height(12.dp))
                                 Text("No hay registros que coincidan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF202A32))
                                 Spacer(Modifier.height(4.dp))
@@ -704,6 +699,8 @@ private fun ReportesGanadoContent(
                     }
                 } else {
                     // PESTAÑA 2: GRÁFICOS Y RESUMEN DASHBOARD CON ANIMACIONES SUAVES DE ENTRADA
+                    val isTabActive = pagerState.currentPage == 1
+
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -712,72 +709,62 @@ private fun ReportesGanadoContent(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         // ENCABEZADO RESUMEN DEL INVENTARIO
-                        AnimatedVisibility(
-                            visible = dashboardVisible,
-                            enter = fadeIn(animationSpec = tween(500)) + slideInVertically(animationSpec = tween(500), initialOffsetY = { -20 })
+                        val headerAlpha by animateFloatAsState(
+                            targetValue = if (isTabActive) 1f else 0f,
+                            animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+                            label = "headerAlpha"
+                        )
+                        val headerTranslationY by animateFloatAsState(
+                            targetValue = if (isTabActive) 0f else 16f,
+                            animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+                            label = "headerTranslationY"
+                        )
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer {
+                                    alpha = headerAlpha
+                                    translationY = headerTranslationY * density
+                                }
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = "Resumen del inventario",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF202A32)
-                                )
-                                Text(
-                                    text = "Visualiza el estado, peso, distribución y composición analítica del hato.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF697782)
-                                )
-                            }
+                            Text(
+                                text = "Resumen del inventario",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF202A32)
+                            )
+                            Text(
+                                text = "Visualiza el estado, peso, distribución y composición analítica del hato.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFF697782)
+                            )
                         }
 
                         // 1. KPIS PRINCIPALES
-                        AnimatedVisibility(
-                            visible = dashboardVisible,
-                            enter = fadeIn(animationSpec = tween(600, delayMillis = 80)) + slideInVertically(animationSpec = tween(600, delayMillis = 80), initialOffsetY = { 30 })
-                        ) {
-                            IndicadoresPrincipalesGrid(stats = stats)
-                        }
+                        IndicadoresPrincipalesGrid(stats = stats, isTabActive = isTabActive)
 
                         // 2. GRÁFICO 1: DISTRIBUCIÓN RANGO PESO
-                        AnimatedVisibility(
-                            visible = dashboardVisible,
-                            enter = fadeIn(animationSpec = tween(700, delayMillis = 160)) + slideInVertically(animationSpec = tween(700, delayMillis = 160), initialOffsetY = { 30 })
-                        ) {
-                            GraficoDistribucionRangoPeso(stats = stats)
-                        }
+                        GraficoDistribucionRangoPeso(stats = stats, isTabActive = isTabActive)
 
                         // 3. GRÁFICOS 2 Y 3: ESTADO Y SEXO
-                        AnimatedVisibility(
-                            visible = dashboardVisible,
-                            enter = fadeIn(animationSpec = tween(800, delayMillis = 240)) + slideInVertically(animationSpec = tween(800, delayMillis = 240), initialOffsetY = { 30 })
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Box(modifier = Modifier.weight(1f)) {
-                                    GraficoDistribucionEstadoDonut(stats = stats)
-                                }
-                                Box(modifier = Modifier.weight(1f)) {
-                                    GraficoDistribucionSexoBars(stats = stats)
-                                }
+                            Box(modifier = Modifier.weight(1f)) {
+                                GraficoDistribucionEstadoDonut(stats = stats, isTabActive = isTabActive)
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                GraficoDistribucionSexoBars(stats = stats, isTabActive = isTabActive)
                             }
                         }
 
                         // 4. RESUMEN TIPO ARETE
-                        AnimatedVisibility(
-                            visible = dashboardVisible,
-                            enter = fadeIn(animationSpec = tween(900, delayMillis = 320)) + slideInVertically(animationSpec = tween(900, delayMillis = 320), initialOffsetY = { 30 })
-                        ) {
-                            ResumenTipoAreteSection(stats = stats)
-                        }
+                        ResumenTipoAreteSection(stats = stats, isTabActive = isTabActive)
                     }
                 }
             }
@@ -925,7 +912,7 @@ private fun ExportarGanadoDialog(
 // SECCIÓN 1: KPIS PRINCIPALES
 // ----------------------------------------------------------------------------------
 @Composable
-private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats) {
+private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats, isTabActive: Boolean = true) {
     val locale = remember { Locale.getDefault() }
 
     Column(
@@ -940,8 +927,10 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats) {
                 title = "Total Animales",
                 value = "${stats.totalAnimales}",
                 subtitle = "cabezas filtradas",
-                icon = Icons.Default.Pets,
+                icon = ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder),
                 accentColor = Color(0xFF31566B),
+                index = 0,
+                isTabActive = isTabActive,
                 modifier = Modifier.weight(1f)
             )
             KpiCard(
@@ -950,6 +939,8 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats) {
                 subtitle = "acumulado entrada",
                 icon = Icons.Default.Scale,
                 accentColor = Color(0xFF5D8795),
+                index = 1,
+                isTabActive = isTabActive,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -961,6 +952,8 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats) {
                 subtitle = if (stats.sinPesoRegistradoCount > 0) "promedio (${stats.sinPesoRegistradoCount} sin peso)" else "promedio / cabeza",
                 icon = Icons.Default.Analytics,
                 accentColor = Color(0xFF6F9E83),
+                index = 2,
+                isTabActive = isTabActive,
                 modifier = Modifier.weight(1f)
             )
             KpiCard(
@@ -969,6 +962,8 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats) {
                 subtitle = "${String.format(locale, "%.1f", stats.pctActivos)}% del total",
                 icon = Icons.Default.CheckCircle,
                 accentColor = Color(0xFF3D7A54),
+                index = 3,
+                isTabActive = isTabActive,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -982,6 +977,8 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats) {
                 icon = Icons.Default.AttachMoney,
                 accentColor = Color(0xFF31566B),
                 isSecondary = true,
+                index = 4,
+                isTabActive = isTabActive,
                 modifier = Modifier.weight(1f)
             )
             KpiCard(
@@ -991,6 +988,8 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats) {
                 icon = Icons.Default.Warning,
                 accentColor = Color(0xFFB3261E),
                 isSecondary = true,
+                index = 5,
+                isTabActive = isTabActive,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -1005,10 +1004,26 @@ private fun KpiCard(
     icon: ImageVector,
     accentColor: Color,
     isSecondary: Boolean = false,
+    index: Int = 0,
+    isTabActive: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val alphaAnim by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 300, delayMillis = index * 50, easing = FastOutSlowInEasing),
+        label = "kpiAlpha_$index"
+    )
+    val translationYAnim by animateFloatAsState(
+        targetValue = if (isTabActive) 0f else 16f,
+        animationSpec = tween(durationMillis = 300, delayMillis = index * 50, easing = FastOutSlowInEasing),
+        label = "kpiTranslationY_$index"
+    )
+
     Card(
-        modifier = modifier,
+        modifier = modifier.graphicsLayer {
+            alpha = alphaAnim
+            translationY = translationYAnim * density
+        },
         colors = CardDefaults.cardColors(
             containerColor = if (isSecondary) Color(0xFFF0F4F8) else Color.White
         ),
@@ -1057,11 +1072,26 @@ private fun KpiCard(
 // SECCIÓN 2: GRÁFICO BARRAS HORIZONTALES (DISTRIBUCIÓN RANGO DE PESO)
 // ----------------------------------------------------------------------------------
 @Composable
-private fun GraficoDistribucionRangoPeso(stats: ReporteGanadoStats) {
+private fun GraficoDistribucionRangoPeso(stats: ReporteGanadoStats, isTabActive: Boolean = true) {
+    val cardAlpha by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 300, delayMillis = 150, easing = FastOutSlowInEasing),
+        label = "rangoCardAlpha"
+    )
+    val cardTranslationY by animateFloatAsState(
+        targetValue = if (isTabActive) 0f else 16f,
+        animationSpec = tween(durationMillis = 300, delayMillis = 150, easing = FastOutSlowInEasing),
+        label = "rangoCardTranslationY"
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .graphicsLayer {
+                alpha = cardAlpha
+                translationY = cardTranslationY * density
+            },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
@@ -1084,7 +1114,7 @@ private fun GraficoDistribucionRangoPeso(stats: ReporteGanadoStats) {
             } else {
                 stats.distribucionRangos.forEachIndexed { idx, item ->
                     key(item.idRangoPeso ?: item.nombreRango) {
-                        RangoBarItem(item = item, index = idx)
+                        RangoBarItem(item = item, index = idx, isTabActive = isTabActive)
                     }
                 }
             }
@@ -1093,23 +1123,35 @@ private fun GraficoDistribucionRangoPeso(stats: ReporteGanadoStats) {
 }
 
 @Composable
-private fun RangoBarItem(item: RangoStat, index: Int = 0) {
+private fun RangoBarItem(item: RangoStat, index: Int = 0, isTabActive: Boolean = true) {
     val locale = remember { Locale.getDefault() }
     val targetFraction = (item.porcentaje / 100.0).toFloat().coerceIn(0f, 1f)
 
     val animProgress by animateFloatAsState(
-        targetValue = targetFraction,
+        targetValue = if (isTabActive) targetFraction else 0f,
         animationSpec = tween(
-            durationMillis = 750,
-            delayMillis = index * 80,
+            durationMillis = 650,
+            delayMillis = index * 70 + 200,
             easing = FastOutSlowInEasing
         ),
         label = "barAnim"
     )
 
+    val textAlpha by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 400,
+            delayMillis = index * 70 + 250,
+            easing = LinearOutSlowInEasing
+        ),
+        label = "rangoTextAlpha"
+    )
+
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { alpha = textAlpha },
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
@@ -1136,7 +1178,7 @@ private fun RangoBarItem(item: RangoStat, index: Int = 0) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .fillMaxWidth(fraction = animProgress.coerceAtLeast(0.01f))
+                    .fillMaxWidth(fraction = animProgress.coerceIn(0f, 1f))
                     .clip(CircleShape)
                     .background(
                         Brush.horizontalGradient(
@@ -1155,9 +1197,43 @@ private fun RangoBarItem(item: RangoStat, index: Int = 0) {
 // SECCIÓN 3: GRÁFICO DE DONA (ESTADO)
 // ----------------------------------------------------------------------------------
 @Composable
-private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats) {
+private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats, isTabActive: Boolean = true) {
+    val cardAlpha by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 300, delayMillis = 220, easing = FastOutSlowInEasing),
+        label = "donutCardAlpha"
+    )
+    val cardTranslationY by animateFloatAsState(
+        targetValue = if (isTabActive) 0f else 16f,
+        animationSpec = tween(durationMillis = 300, delayMillis = 220, easing = FastOutSlowInEasing),
+        label = "donutCardTranslationY"
+    )
+
+    val ringProgress by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 800, delayMillis = 250, easing = FastOutSlowInEasing),
+        label = "donutAnim"
+    )
+
+    val centerAlpha by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 400, delayMillis = 550, easing = LinearOutSlowInEasing),
+        label = "donutCenterAlpha"
+    )
+
+    val legendAlpha by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 400, delayMillis = 450, easing = LinearOutSlowInEasing),
+        label = "donutLegendAlpha"
+    )
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                alpha = cardAlpha
+                translationY = cardTranslationY * density
+            },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
@@ -1173,12 +1249,6 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats) {
             }
             Spacer(Modifier.height(12.dp))
 
-            val animProgress by animateFloatAsState(
-                targetValue = 1f,
-                animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing),
-                label = "donutAnim"
-            )
-
             Box(
                 modifier = Modifier.size(110.dp),
                 contentAlignment = Alignment.Center
@@ -1189,7 +1259,7 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats) {
 
                     if (total > 0f) {
                         stats.distribucionEstado.forEach { item ->
-                            val sweepAngle = (item.cantidad.toFloat() / total) * 360f * animProgress
+                            val sweepAngle = (item.cantidad.toFloat() / total) * 360f * ringProgress
                             if (sweepAngle > 0f) {
                                 drawArc(
                                     color = item.color,
@@ -1212,7 +1282,10 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats) {
                     }
                 }
 
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.graphicsLayer { alpha = centerAlpha }
+                ) {
                     Text(text = "${stats.totalAnimales}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF202A32))
                     Text(text = "Total", fontSize = 9.sp, color = Color(0xFF697782))
                 }
@@ -1221,18 +1294,20 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats) {
             Spacer(Modifier.height(10.dp))
 
             val locale = remember { Locale.getDefault() }
-            stats.distribucionEstado.forEach { item ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(8.dp).background(item.color, CircleShape))
-                        Spacer(Modifier.width(6.dp))
-                        Text(item.label, fontSize = 10.sp, color = Color(0xFF202A32))
+            Column(modifier = Modifier.graphicsLayer { alpha = legendAlpha }) {
+                stats.distribucionEstado.forEach { item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(8.dp).background(item.color, CircleShape))
+                            Spacer(Modifier.width(6.dp))
+                            Text(item.label, fontSize = 10.sp, color = Color(0xFF202A32))
+                        }
+                        Text("${item.cantidad} (${String.format(locale, "%.0f", item.porcentaje)}%)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
-                    Text("${item.cantidad} (${String.format(locale, "%.0f", item.porcentaje)}%)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1243,9 +1318,25 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats) {
 // SECCIÓN 4: GRÁFICO BARRAS VERTICALES (SEXO)
 // ----------------------------------------------------------------------------------
 @Composable
-private fun GraficoDistribucionSexoBars(stats: ReporteGanadoStats) {
+private fun GraficoDistribucionSexoBars(stats: ReporteGanadoStats, isTabActive: Boolean = true) {
+    val cardAlpha by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 300, delayMillis = 220, easing = FastOutSlowInEasing),
+        label = "sexoCardAlpha"
+    )
+    val cardTranslationY by animateFloatAsState(
+        targetValue = if (isTabActive) 0f else 16f,
+        animationSpec = tween(durationMillis = 300, delayMillis = 220, easing = FastOutSlowInEasing),
+        label = "sexoCardTranslationY"
+    )
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                alpha = cardAlpha
+                translationY = cardTranslationY * density
+            },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
@@ -1268,9 +1359,9 @@ private fun GraficoDistribucionSexoBars(stats: ReporteGanadoStats) {
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.Bottom
             ) {
-                stats.distribucionSexo.forEach { item ->
+                stats.distribucionSexo.forEachIndexed { idx, item ->
                     key(item.sexo) {
-                        SexoBarItem(item = item)
+                        SexoBarItem(item = item, index = idx, isTabActive = isTabActive)
                     }
                 }
             }
@@ -1280,13 +1371,19 @@ private fun GraficoDistribucionSexoBars(stats: ReporteGanadoStats) {
 }
 
 @Composable
-private fun SexoBarItem(item: SexoStat) {
-    val targetFraction = (item.porcentaje / 100.0).toFloat().coerceIn(0f, 1f)
+private fun SexoBarItem(item: SexoStat, index: Int = 0, isTabActive: Boolean = true) {
+    val targetFraction = if (item.cantidad > 0) (item.porcentaje / 100.0).toFloat().coerceIn(0f, 1f) else 0f
 
-    val animProgress by animateFloatAsState(
-        targetValue = targetFraction,
-        animationSpec = tween(durationMillis = 750, easing = FastOutSlowInEasing),
+    val barProgress by animateFloatAsState(
+        targetValue = if (isTabActive) targetFraction else 0f,
+        animationSpec = tween(durationMillis = 600, delayMillis = index * 100 + 250, easing = FastOutSlowInEasing),
         label = "vBarAnim"
+    )
+
+    val textAlpha by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 400, delayMillis = index * 100 + 350, easing = LinearOutSlowInEasing),
+        label = "sexoTextAlpha"
     )
 
     Column(
@@ -1294,17 +1391,26 @@ private fun SexoBarItem(item: SexoStat) {
         verticalArrangement = Arrangement.Bottom,
         modifier = Modifier.fillMaxHeight()
     ) {
-        Text("${item.cantidad}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF202A32))
+        Text(
+            text = "${item.cantidad}",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF202A32),
+            modifier = Modifier.graphicsLayer { alpha = textAlpha }
+        )
         Spacer(Modifier.height(4.dp))
         Box(
             modifier = Modifier
                 .width(32.dp)
-                .height((80 * animProgress.coerceAtLeast(0.02f)).dp)
+                .height(if (item.cantidad == 0) 0.dp else (80 * barProgress.coerceIn(0f, 1f)).dp)
                 .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
                 .background(item.color)
         )
         Spacer(Modifier.height(4.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.graphicsLayer { alpha = textAlpha }
+        ) {
             Icon(
                 if (item.sexo == Sexo.MACHO) Icons.Default.Male else Icons.Default.Female,
                 contentDescription = null,
@@ -1321,11 +1427,26 @@ private fun SexoBarItem(item: SexoStat) {
 // SECCIÓN 5: RESUMEN TIPO DE ARETE
 // ----------------------------------------------------------------------------------
 @Composable
-private fun ResumenTipoAreteSection(stats: ReporteGanadoStats) {
+private fun ResumenTipoAreteSection(stats: ReporteGanadoStats, isTabActive: Boolean = true) {
+    val cardAlpha by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 300, delayMillis = 300, easing = FastOutSlowInEasing),
+        label = "tipoAreteCardAlpha"
+    )
+    val cardTranslationY by animateFloatAsState(
+        targetValue = if (isTabActive) 0f else 16f,
+        animationSpec = tween(durationMillis = 300, delayMillis = 300, easing = FastOutSlowInEasing),
+        label = "tipoAreteCardTranslationY"
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .graphicsLayer {
+                alpha = cardAlpha
+                translationY = cardTranslationY * density
+            },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
@@ -1340,8 +1461,13 @@ private fun ResumenTipoAreteSection(stats: ReporteGanadoStats) {
             Spacer(Modifier.height(12.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                stats.distribucionTipoArete.forEach { item ->
-                    TipoAreteBarItem(item = item, modifier = Modifier.weight(1f))
+                stats.distribucionTipoArete.forEachIndexed { idx, item ->
+                    TipoAreteBarItem(
+                        item = item,
+                        index = idx,
+                        isTabActive = isTabActive,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
@@ -1349,27 +1475,69 @@ private fun ResumenTipoAreteSection(stats: ReporteGanadoStats) {
 }
 
 @Composable
-private fun TipoAreteBarItem(item: TipoAreteStat, modifier: Modifier = Modifier) {
+private fun TipoAreteBarItem(
+    item: TipoAreteStat,
+    index: Int = 0,
+    isTabActive: Boolean = true,
+    modifier: Modifier = Modifier
+) {
     val locale = remember { Locale.getDefault() }
     val targetFraction = (item.porcentaje / 100.0).toFloat().coerceIn(0f, 1f)
 
-    val animProgress by animateFloatAsState(
-        targetValue = targetFraction,
-        animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
-        label = "tipoAreteAnim"
+    val itemAlpha by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 300, delayMillis = index * 80 + 320, easing = FastOutSlowInEasing),
+        label = "tipoAreteItemAlpha_$index"
+    )
+    val itemTranslationY by animateFloatAsState(
+        targetValue = if (isTabActive) 0f else 12f,
+        animationSpec = tween(durationMillis = 300, delayMillis = index * 80 + 320, easing = FastOutSlowInEasing),
+        label = "tipoAreteItemTranslationY_$index"
+    )
+
+    val barProgress by animateFloatAsState(
+        targetValue = if (isTabActive) targetFraction else 0f,
+        animationSpec = tween(durationMillis = 500, delayMillis = index * 80 + 400, easing = FastOutSlowInEasing),
+        label = "tipoAreteBarAnim_$index"
+    )
+
+    val textAlpha by animateFloatAsState(
+        targetValue = if (isTabActive) 1f else 0f,
+        animationSpec = tween(durationMillis = 350, delayMillis = index * 80 + 380, easing = LinearOutSlowInEasing),
+        label = "tipoAreteTextAlpha_$index"
     )
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.graphicsLayer {
+            alpha = itemAlpha
+            translationY = itemTranslationY * density
+        },
         color = Color(0xFFF5F7F9),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(item.label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5D8795))
+            Text(
+                item.label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF5D8795),
+                modifier = Modifier.graphicsLayer { alpha = textAlpha }
+            )
             Spacer(Modifier.height(4.dp))
-            Text("${item.cantidad} cab.", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF202A32))
+            Text(
+                "${item.cantidad} cab.",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = Color(0xFF202A32),
+                modifier = Modifier.graphicsLayer { alpha = textAlpha }
+            )
             Spacer(Modifier.height(2.dp))
-            Text("${String.format(locale, "%.1f", item.porcentaje)}% del total", fontSize = 10.sp, color = Color(0xFF697782))
+            Text(
+                "${String.format(locale, "%.1f", item.porcentaje)}% del total",
+                fontSize = 10.sp,
+                color = Color(0xFF697782),
+                modifier = Modifier.graphicsLayer { alpha = textAlpha }
+            )
             Spacer(Modifier.height(6.dp))
             Box(
                 modifier = Modifier
@@ -1381,7 +1549,7 @@ private fun TipoAreteBarItem(item: TipoAreteStat, modifier: Modifier = Modifier)
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .fillMaxWidth(fraction = animProgress.coerceAtLeast(0.02f))
+                        .fillMaxWidth(fraction = barProgress.coerceIn(0f, 1f))
                         .clip(CircleShape)
                         .background(Color(0xFF31566B))
                 )
@@ -1389,6 +1557,7 @@ private fun TipoAreteBarItem(item: TipoAreteStat, modifier: Modifier = Modifier)
         }
     }
 }
+
 
 // ----------------------------------------------------------------------------------
 // DIÁLOGO DE FILTROS DE GANADO (5 CRITERIOS REQUERIDOS)

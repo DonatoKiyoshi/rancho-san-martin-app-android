@@ -10,8 +10,8 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.rancho.gestion.debug"
-        minSdk = 29
+        applicationId = "com.rancho.gestion"
+        minSdk = 26
         targetSdk = 36
         versionCode = 2
         versionName = "1.1.1"
@@ -19,22 +19,16 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
-    signingConfigs {
-        create("release") {
-            // Temporary fix: use debug keystore to avoid build error
-            // Replace with your actual release keystore details when available
-            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-    }
-
     buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("release")
+        getByName("release") {
             isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        getByName("debug") {
+            applicationIdSuffix = ".debug"
         }
     }
 
@@ -91,7 +85,6 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // Pruebas unitarias de la logica pura de negocio (domain/BusinessLogic.kt).
-    // No requieren emulador/dispositivo: corren en la JVM local.
     testImplementation("junit:junit:4.13.2")
 
     // --- Escaneo de codigo de barras por camara ---
