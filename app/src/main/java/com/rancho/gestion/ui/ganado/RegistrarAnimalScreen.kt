@@ -6,8 +6,10 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -19,11 +21,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.ViewWeek
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TransformedText
-import com.rancho.gestion.ui.components.ThousandsSeparatorVisualTransformation
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -53,8 +51,8 @@ import com.rancho.gestion.data.repository.ResultadoOperacion
 import com.rancho.gestion.ui.components.BackTopBar
 import com.rancho.gestion.ui.components.BarcodeScannerScreen
 import com.rancho.gestion.ui.components.SuccessDialog
+import com.rancho.gestion.ui.components.ThousandsSeparatorVisualTransformation
 import com.rancho.gestion.ui.theme.RanchoPrimary
-import com.rancho.gestion.ui.theme.RanchoSuccess
 import com.rancho.gestion.ui.theme.RanchoTextSecondary
 import com.rancho.gestion.util.ImageOptimizer
 import com.rancho.gestion.util.SessionManager
@@ -74,7 +72,6 @@ fun RegistrarAnimalScreen(container: AppContainer, onBack: () -> Unit) {
     var precio by rememberSaveable { mutableStateOf("") }
     var proveedor by rememberSaveable { mutableStateOf("") }
     
-    // Almacenar URIs como String para mejor persistencia en rememberSaveable
     var fotoUriStr by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingUriStr by rememberSaveable { mutableStateOf<String?>(null) }
     
@@ -163,7 +160,7 @@ fun RegistrarAnimalScreen(container: AppContainer, onBack: () -> Unit) {
             tipoArete = tipoArete,
             onTipoAreteChange = { 
                 tipoArete = it
-                arete = "" // Limpiar al cambiar tipo para evitar inconsistencias
+                arete = ""
                 error = null
             },
             arete = arete,
@@ -305,24 +302,56 @@ private fun RegistrarAnimalContent(
 ) {
     var sexoMenuAbierto by remember { mutableStateOf(false) }
     var colorMenuAbierto by remember { mutableStateOf(false) }
-    val opcionesColor = listOf("Negro", "Hosco", "Ballo", "Blanco", "Careto", "Sardo")
+    val opcionesColor = listOf("Negro", "Hosco", "Ballo", "Blanco", "Careto", "Sardo", "Pinto")
+
+    // Colores y animaciones fluidas según el tipo de arete seleccionado
+    val targetBgColor = if (tipoArete == TipoArete.SADER) Color(0xFFFFD54F) else Color(0xFF80CBC4)
+    val animatedBgColor by animateColorAsState(
+        targetValue = targetBgColor,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "segmentColor"
+    )
+
+    val buttonBgColor by animateColorAsState(
+        targetValue = if (tipoArete == TipoArete.SADER) MaterialTheme.colorScheme.primary else Color(0xFF14B8A6),
+        animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+        label = "buttonColor"
+    )
+
+    val saderTextColor by animateColorAsState(
+        targetValue = if (tipoArete == TipoArete.SADER) Color(0xFF1B364B) else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = tween(durationMillis = 250),
+        label = "saderTextColor"
+    )
+
+    val otroTextColor by animateColorAsState(
+        targetValue = if (tipoArete == TipoArete.OTRO) Color(0xFF1B364B) else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = tween(durationMillis = 250),
+        label = "otroTextColor"
+    )
 
     Scaffold(topBar = { BackTopBar(title = "Registrar Animal", onBack = onBack) }) { padding ->
         Column(
             Modifier
                 .padding(padding)
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
                 .padding(horizontal = 20.dp)
                 .imePadding()
                 .verticalScroll(rememberScrollState())
         ) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
 
-            Text("Fotografía", style = MaterialTheme.typography.labelLarge, color = RanchoTextSecondary)
+            // SECCIÓN FOTOGRAFÍA
+            Text("Fotografía", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier
-                        .size(84.dp)
+                        .size(80.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
@@ -338,51 +367,109 @@ private fun RegistrarAnimalContent(
                         Icon(
                             imageVector = ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder),
                             contentDescription = null,
-                            tint = RanchoTextSecondary.copy(alpha = 0.5f),
-                            modifier = Modifier.size(48.dp)
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(52.dp)
                         )
                     }
                 }
                 Spacer(Modifier.width(16.dp))
                 Column {
-                    OutlinedButton(onClick = onTomarFoto, shape = RoundedCornerShape(50)) {
-                        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                    OutlinedButton(
+                        onClick = onTomarFoto,
+                        shape = RoundedCornerShape(50),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurface)
                         Spacer(Modifier.width(8.dp))
-                        Text(if (fotoUri == null) "Tomar foto" else "Repetir foto")
+                        Text(if (fotoUri == null) "Tomar foto" else "Repetir foto", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                     }
                     if (fotoUri != null) {
                         TextButton(onClick = onQuitarFoto) {
-                            Text("Quitar foto", color = MaterialTheme.colorScheme.error)
+                            Text("Quitar foto", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(20.dp))
 
-            Text("Tipo de Arete", style = MaterialTheme.typography.labelLarge, color = RanchoTextSecondary)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
-                        selected = tipoArete == TipoArete.SADER,
-                        onClick = { onTipoAreteChange(TipoArete.SADER) },
-                        colors = RadioButtonDefaults.colors(selectedColor = Color(0xFFFFD700))
+            // SECCIÓN TIPO DE ARETE - CONTROL SEGMENTADO ANIMADO Y FLUIDO
+            Text("Tipo de Arete", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+
+            Surface(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                shape = RoundedCornerShape(50),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(4.dp)
+                ) {
+                    val segmentWidth = maxWidth / 2
+
+                    val indicatorOffset by animateDpAsState(
+                        targetValue = if (tipoArete == TipoArete.SADER) 0.dp else segmentWidth,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioLowBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        ),
+                        label = "indicatorOffset"
                     )
-                    Text("SADER", style = MaterialTheme.typography.bodyLarge)
-                }
-                Spacer(Modifier.width(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
-                        selected = tipoArete == TipoArete.OTRO,
-                        onClick = { onTipoAreteChange(TipoArete.OTRO) },
-                        colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF00CED1))
+
+                    // PÍLDORA DESLIZANTE CON COLOR ANIMADO
+                    Box(
+                        modifier = Modifier
+                            .offset { androidx.compose.ui.unit.IntOffset(indicatorOffset.roundToPx(), 0) }
+                            .width(segmentWidth)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(50))
+                            .background(animatedBgColor)
                     )
-                    Text("OTRO", style = MaterialTheme.typography.bodyLarge)
+
+                    // SEGMENTOS CLICKEABLES
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(50))
+                                .clickable { onTipoAreteChange(TipoArete.SADER) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "SADER",
+                                color = saderTextColor,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(50))
+                                .clickable { onTipoAreteChange(TipoArete.OTRO) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "OTRO",
+                                color = otroTextColor,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(14.dp))
             
+            // CAMPO ARETE + BOTÓN ESCANEAR INTEGRADO
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -394,6 +481,7 @@ private fun RegistrarAnimalContent(
                         label = { Text(if (tipoArete == TipoArete.SADER) "Arete SADER" else "Arete OTRO") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f)
                     )
                     if (tipoArete == TipoArete.SADER) {
@@ -404,7 +492,7 @@ private fun RegistrarAnimalContent(
                                 .height(56.dp)
                                 .width(80.dp),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = RanchoPrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = buttonBgColor),
                             contentPadding = PaddingValues(0.dp)
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -416,22 +504,25 @@ private fun RegistrarAnimalContent(
                 }
                 Text(
                     text = if (tipoArete == TipoArete.SADER) 
-                        "Escribe o escanea con el lector de código de barras"
+                        "Escribe o escanea el código de barras"
                     else 
                         "Ingresa máximo 6 dígitos numéricos",
                     style = MaterialTheme.typography.bodySmall,
-                    color = RanchoTextSecondary,
-                    modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 12.dp, top = 4.dp)
                 )
             }
 
             Spacer(Modifier.height(14.dp))
+
+            // DROPDOWN COLOR
             ExposedDropdownMenuBox(expanded = colorMenuAbierto, onExpandedChange = { colorMenuAbierto = it }) {
                 OutlinedTextField(
                     value = color,
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Color") },
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth().menuAnchor(),
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = colorMenuAbierto) }
                 )
@@ -447,14 +538,17 @@ private fun RegistrarAnimalContent(
                     }
                 }
             }
+
             Spacer(Modifier.height(14.dp))
 
+            // DROPDOWN SEXO
             ExposedDropdownMenuBox(expanded = sexoMenuAbierto, onExpandedChange = { sexoMenuAbierto = it }) {
                 OutlinedTextField(
                     value = if (sexo == Sexo.MACHO) "Macho" else "Hembra",
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Sexo") },
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth().menuAnchor(),
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sexoMenuAbierto) }
                 )
@@ -465,6 +559,8 @@ private fun RegistrarAnimalContent(
             }
 
             Spacer(Modifier.height(14.dp))
+
+            // CAMPO PESO
             OutlinedTextField(
                 value = peso,
                 onValueChange = onPesoChange,
@@ -472,9 +568,13 @@ private fun RegistrarAnimalContent(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 visualTransformation = ThousandsSeparatorVisualTransformation(),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             )
+
             Spacer(Modifier.height(14.dp))
+
+            // CAMPO PRECIO COMPRA
             OutlinedTextField(
                 value = precio,
                 onValueChange = onPrecioChange,
@@ -482,14 +582,19 @@ private fun RegistrarAnimalContent(
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 visualTransformation = ThousandsSeparatorVisualTransformation(),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             )
+
             Spacer(Modifier.height(14.dp))
+
+            // CAMPO PROVEEDOR
             OutlinedTextField(
                 value = proveedor,
                 onValueChange = onProveedorChange,
                 label = { Text("Proveedor") },
                 singleLine = true,
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -498,12 +603,20 @@ private fun RegistrarAnimalContent(
                 Text(it, color = MaterialTheme.colorScheme.error)
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(28.dp))
+
+            // BOTÓN GUARDAR
             Button(
                 onClick = onGuardar,
                 enabled = !guardando,
-                modifier = Modifier.fillMaxWidth().height(52.dp)
-            ) { Text(if (guardando) "Guardando..." else "Guardar") }
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(containerColor = buttonBgColor),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+            ) {
+                Text(if (guardando) "Guardando..." else "Guardar", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
 
             Spacer(Modifier.height(32.dp))
         }
@@ -523,11 +636,9 @@ private fun RegistrarAnimalContent(
     }
 }
 
-
 private fun crearUriParaFoto(context: Context): Uri {
     val carpeta = File(context.cacheDir, "fotos_ganado").apply { if (!exists()) mkdirs() }
     val archivo = File.createTempFile("animal_", ".jpg", carpeta)
-    // Usar la autoridad real del paquete en tiempo de ejecución (RF-FIX)
     val authority = "${context.packageName}.fileprovider"
     return FileProvider.getUriForFile(context, authority, archivo)
 }

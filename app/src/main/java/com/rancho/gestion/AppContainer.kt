@@ -5,11 +5,13 @@ import com.rancho.gestion.data.AppDatabase
 import com.rancho.gestion.data.repository.*
 
 import com.rancho.gestion.util.BiometricAuthManager
+import com.rancho.gestion.util.ThemeManager
 
 class AppContainer(context: Context) {
     private val database = AppDatabase.getInstance(context)
 
     val biometricAuthManager = BiometricAuthManager(context)
+    val themeManager = ThemeManager(context)
 
     val authRepository = AuthRepository(database.usuarioDao())
     

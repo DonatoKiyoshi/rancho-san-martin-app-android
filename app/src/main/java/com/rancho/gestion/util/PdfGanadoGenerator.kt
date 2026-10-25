@@ -34,23 +34,23 @@ object PdfGanadoGenerator {
             // A4 Horizontal (842 x 595 pt)
             val pageWidth = 842
             val pageHeight = 595
-            val margin = 35f
+            val margin = 25f
             val tableWidth = pageWidth - (margin * 2)
 
             val textPaint = TextPaint().apply {
                 color = colorTextDark
-                textSize = 9f
+                textSize = 8.5f
                 isAntiAlias = true
             }
             val boldPaint = TextPaint().apply {
                 color = colorTextDark
-                textSize = 9f
+                textSize = 8.5f
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 isAntiAlias = true
             }
             val headerPaint = TextPaint().apply {
                 color = Color.WHITE
-                textSize = 9.5f
+                textSize = 9f
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 isAntiAlias = true
             }
@@ -67,7 +67,7 @@ object PdfGanadoGenerator {
 
             // --- PÁGINA 1: Encabezado y comienzo de Tabla Tabular ---
             var yPos = drawReportHeader(canvas, exportData, margin, tableWidth)
-            yPos = drawTableHeader(canvas, yPos + 10f, margin, headerPaint)
+            yPos = drawTableHeader(canvas, yPos + 10f, margin, headerPaint, tableWidth)
 
             val rowHeight = 22f
 
@@ -82,7 +82,7 @@ object PdfGanadoGenerator {
                     canvas = page.canvas
 
                     yPos = drawSecondaryHeader(canvas, exportData, margin, tableWidth)
-                    yPos = drawTableHeader(canvas, yPos + 8f, margin, headerPaint)
+                    yPos = drawTableHeader(canvas, yPos + 8f, margin, headerPaint, tableWidth)
                 }
 
                 val rowBg = if (index % 2 == 0) bgEvenPaint else bgOddPaint
@@ -94,13 +94,13 @@ object PdfGanadoGenerator {
                 // Columna 1: Número Arete
                 canvas.drawText(row.numeroArete, margin + 5f, textY, boldPaint)
                 // Columna 2: Tipo Arete
-                canvas.drawText(row.tipoArete, margin + 120f, textY, textPaint)
+                canvas.drawText(row.tipoArete, margin + 102f, textY, textPaint)
                 // Columna 3: Fecha Entrada
-                canvas.drawText(row.fechaEntradaTexto, margin + 185f, textY, textPaint)
+                canvas.drawText(row.fechaEntradaTexto, margin + 152f, textY, textPaint)
                 // Columna 4: Color
-                canvas.drawText(row.color, margin + 255f, textY, textPaint)
+                canvas.drawText(row.color, margin + 212f, textY, textPaint)
                 // Columna 5: Sexo
-                canvas.drawText(row.sexo, margin + 320f, textY, textPaint)
+                canvas.drawText(row.sexo, margin + 262f, textY, textPaint)
 
                 // Columna 6: Estado (Con color distintivo)
                 val estadoPaint = Paint(textPaint).apply {
@@ -111,16 +111,20 @@ object PdfGanadoGenerator {
                     }
                     typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 }
-                canvas.drawText(row.estado, margin + 375f, textY, estadoPaint)
+                canvas.drawText(row.estado, margin + 308f, textY, estadoPaint)
 
                 // Columna 7: Peso Entrada
-                canvas.drawText(row.pesoEntradaTexto, margin + 445f, textY, textPaint)
+                canvas.drawText(row.pesoEntradaTexto, margin + 358f, textY, textPaint)
                 // Columna 8: Peso Salida
-                canvas.drawText(row.pesoSalidaTexto, margin + 520f, textY, textPaint)
+                canvas.drawText(row.pesoSalidaTexto, margin + 414f, textY, textPaint)
                 // Columna 9: Rango Peso
-                canvas.drawText(row.rangoPeso, margin + 595f, textY, textPaint)
+                canvas.drawText(row.rangoPeso, margin + 470f, textY, textPaint)
                 // Columna 10: Precio Compra
-                canvas.drawText(row.precioCompraTexto, margin + 680f, textY, textPaint)
+                canvas.drawText(row.precioCompraTexto, margin + 538f, textY, textPaint)
+                // Columna 11: Precio Venta
+                canvas.drawText(row.precioVentaTexto, margin + 610f, textY, textPaint)
+                // Columna 12: Fecha Salida
+                canvas.drawText(row.fechaSalidaTexto, margin + 682f, textY, textPaint)
 
                 yPos += rowHeight
             }
@@ -170,13 +174,12 @@ object PdfGanadoGenerator {
         val paginasTabla = if (numRegistros <= registrosPrimeraPagina) 1 else {
             1 + kotlin.math.ceil((numRegistros - registrosPrimeraPagina) / registrosPaginaIntermedia.toDouble()).toInt()
         }
-        return paginasTabla + 1 // +1 página final para Gráficos y Resumen
+        return paginasTabla + 1
     }
 
     private fun drawReportHeader(canvas: Canvas, data: ReporteGanadoExportData, margin: Float, width: Float): Float {
         var y = margin + 15f
 
-        // Nombre Rancho
         val titlePaint = Paint().apply {
             color = colorPrimary
             textSize = 18f
@@ -185,7 +188,6 @@ object PdfGanadoGenerator {
         }
         canvas.drawText(data.nombreRancho, margin, y, titlePaint)
 
-        // Título del Reporte
         val subtitlePaint = Paint().apply {
             color = colorAccent
             textSize = 13f
@@ -194,7 +196,6 @@ object PdfGanadoGenerator {
         }
         canvas.drawText("Reporte de Ganado e Inventario", margin, y + 18f, subtitlePaint)
 
-        // Metadata de Generación (Alineada a la derecha)
         val metaPaint = Paint().apply {
             color = colorTextMuted
             textSize = 9f
@@ -206,7 +207,6 @@ object PdfGanadoGenerator {
 
         y += 38f
 
-        // Caja de Filtros Aplicados
         val filterBoxPaint = Paint().apply { color = Color.parseColor("#F1F5F9") }
         canvas.drawRoundRect(margin, y, margin + width, y + 26f, 6f, 6f, filterBoxPaint)
 
@@ -232,22 +232,24 @@ object PdfGanadoGenerator {
         return y + 12f
     }
 
-    private fun drawTableHeader(canvas: Canvas, y: Float, margin: Float, headerPaint: TextPaint): Float {
+    private fun drawTableHeader(canvas: Canvas, y: Float, margin: Float, headerPaint: TextPaint, width: Float): Float {
         val height = 22f
         val bgPaint = Paint().apply { color = colorHeaderBg }
-        canvas.drawRect(margin, y, margin + 772f, y + height, bgPaint)
+        canvas.drawRect(margin, y, margin + width, y + height, bgPaint)
 
         val textY = y + 14f
         canvas.drawText("Número Arete", margin + 5f, textY, headerPaint)
-        canvas.drawText("Tipo Arete", margin + 120f, textY, headerPaint)
-        canvas.drawText("Fecha Ent.", margin + 185f, textY, headerPaint)
-        canvas.drawText("Color", margin + 255f, textY, headerPaint)
-        canvas.drawText("Sexo", margin + 320f, textY, headerPaint)
-        canvas.drawText("Estado", margin + 375f, textY, headerPaint)
-        canvas.drawText("Peso Ent.", margin + 445f, textY, headerPaint)
-        canvas.drawText("Peso Sal.", margin + 520f, textY, headerPaint)
-        canvas.drawText("Rango Peso", margin + 595f, textY, headerPaint)
-        canvas.drawText("P. Compra", margin + 680f, textY, headerPaint)
+        canvas.drawText("Tipo Arete", margin + 102f, textY, headerPaint)
+        canvas.drawText("Fecha Ent.", margin + 152f, textY, headerPaint)
+        canvas.drawText("Color", margin + 212f, textY, headerPaint)
+        canvas.drawText("Sexo", margin + 262f, textY, headerPaint)
+        canvas.drawText("Estado", margin + 308f, textY, headerPaint)
+        canvas.drawText("Peso Ent.", margin + 358f, textY, headerPaint)
+        canvas.drawText("Peso Sal.", margin + 414f, textY, headerPaint)
+        canvas.drawText("Rango Peso", margin + 470f, textY, headerPaint)
+        canvas.drawText("P. Compra", margin + 538f, textY, headerPaint)
+        canvas.drawText("P. Venta", margin + 610f, textY, headerPaint)
+        canvas.drawText("Fecha Sal.", margin + 682f, textY, headerPaint)
 
         return y + height
     }
@@ -268,15 +270,19 @@ object PdfGanadoGenerator {
         canvas.drawText("TOTALES ACUMULADOS", margin + 10f, textY, boldPaint)
 
         val pesoEntTotalTxt = "${String.format(locale, "%,.0f", data.stats.pesoTotal)} kg"
-        canvas.drawText(pesoEntTotalTxt, margin + 445f, textY, boldPaint)
+        canvas.drawText(pesoEntTotalTxt, margin + 358f, textY, boldPaint)
 
         val pesoSalTotal = data.tablaRows.mapNotNull { it.pesoSalida }.sum()
         val pesoSalTxt = if (data.tablaRows.any { it.pesoSalida != null }) "${String.format(locale, "%,.0f", pesoSalTotal)} kg" else "N/A"
-        canvas.drawText(pesoSalTxt, margin + 520f, textY, boldPaint)
+        canvas.drawText(pesoSalTxt, margin + 414f, textY, boldPaint)
 
         val precioCompraTotal = data.tablaRows.sumOf { it.precioCompra }
         val precioCompraTxt = "$${String.format(locale, "%,.2f", precioCompraTotal)}"
-        canvas.drawText(precioCompraTxt, margin + 680f, textY, boldPaint)
+        canvas.drawText(precioCompraTxt, margin + 538f, textY, boldPaint)
+
+        val precioVentaTotal = data.tablaRows.mapNotNull { it.precioVenta }.sum()
+        val precioVentaTxt = if (data.tablaRows.any { it.precioVenta != null }) "$${String.format(locale, "%,.2f", precioVentaTotal)}" else "N/A"
+        canvas.drawText(precioVentaTxt, margin + 610f, textY, boldPaint)
     }
 
     private fun drawAnalyticsSectionPage(
@@ -289,7 +295,6 @@ object PdfGanadoGenerator {
         var y = margin + 15f
         val locale = Locale.getDefault()
 
-        // Título Sección
         val secTitlePaint = Paint().apply {
             color = colorPrimary
             textSize = 16f
@@ -307,7 +312,6 @@ object PdfGanadoGenerator {
 
         y += 35f
 
-        // BLOQUES KPIS
         val kpiBoxWidth = 115f
         val kpiBoxHeight = 45f
         val stats = data.stats
@@ -321,7 +325,6 @@ object PdfGanadoGenerator {
 
         y += 60f
 
-        // DIBUJO DE GRÁFICO 1: RANGOS DE PESO (Barras Horizontales)
         canvas.drawText("Distribución por Rango de Peso", margin, y, secTitlePaint.apply { textSize = 12f })
         y += 12f
 
@@ -335,14 +338,12 @@ object PdfGanadoGenerator {
             val pct = (rango.porcentaje / 100.0).toFloat().coerceIn(0f, 1f)
             val barW = maxBarWidth * pct
 
-            // Track background
             canvas.drawRoundRect(margin + 120f, y, margin + 120f + maxBarWidth, y + barHeight, 6f, 6f, Paint().apply { color = Color.parseColor("#E2E8ED") })
-            // Fill bar
             if (barW > 0f) {
                 canvas.drawRoundRect(margin + 120f, y, margin + 120f + barW, y + barHeight, 6f, 6f, Paint().apply { color = colorPrimary })
             }
 
-            val valTxt = "${rango.cantidad} cab. (${String.format(locale, "%.1f", rango.porcentaje)}%)"
+            val valTxt = "${rango.cantidad} cabezas (${String.format(locale, "%.1f", rango.porcentaje)}%)"
             canvas.drawText(valTxt, margin + 120f + maxBarWidth + 10f, y + 10f, subPaint)
 
             y += barHeight + 4f
@@ -350,7 +351,6 @@ object PdfGanadoGenerator {
 
         y += 25f
 
-        // DIBUJO DE GRÁFICO 2: DONA DE ESTADO
         canvas.drawText("Distribución por Estado e Identificación", margin, y, secTitlePaint.apply { textSize = 12f })
         y += 20f
 
@@ -382,10 +382,8 @@ object PdfGanadoGenerator {
             }
         }
 
-        // Texto central de la dona
         canvas.drawText("${stats.totalAnimales}", donutX - 10f, donutY + 4f, secTitlePaint.apply { textSize = 14f })
 
-        // Leyenda Estado (A la derecha de la dona)
         var legY = y + 15f
         stats.distribucionEstado.forEach { item ->
             canvas.drawCircle(donutX + 80f, legY + 4f, 5f, Paint().apply { color = item.color.toArgb() })
@@ -393,12 +391,11 @@ object PdfGanadoGenerator {
             legY += 18f
         }
 
-        // Resumen Tipo Arete (SADER vs OTRO)
         val areteX = margin + 450f
         canvas.drawText("Resumen Tipo Arete:", areteX, y + 15f, secTitlePaint.apply { textSize = 11f })
         var areteY = y + 32f
         stats.distribucionTipoArete.forEach { item ->
-            canvas.drawText("${item.label}: ${item.cantidad} cab. (${String.format(locale, "%.1f", item.porcentaje)}%)", areteX, areteY, subPaint)
+            canvas.drawText("${item.label}: ${item.cantidad} cabezas (${String.format(locale, "%.1f", item.porcentaje)}%)", areteX, areteY, subPaint)
             areteY += 16f
         }
     }

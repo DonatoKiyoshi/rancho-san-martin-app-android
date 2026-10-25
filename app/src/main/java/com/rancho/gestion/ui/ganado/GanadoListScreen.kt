@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Input
@@ -24,10 +25,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -38,21 +39,18 @@ import com.rancho.gestion.R
 import com.rancho.gestion.data.entities.*
 import com.rancho.gestion.ui.components.AreteTag
 import com.rancho.gestion.ui.components.BarcodeScannerScreen
-import com.rancho.gestion.ui.components.ConfirmDialog
 import com.rancho.gestion.ui.components.EmptyState
-import com.rancho.gestion.ui.components.EtapaBadge
 import com.rancho.gestion.ui.components.HomeTopBar
 import com.rancho.gestion.ui.theme.*
 import com.rancho.gestion.util.SessionManager
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 data class GanadoFilters(
     val sexo: String = "Todos",
     val fase: String = "Todos",
     val color: String = "Todos",
-    val tipo: String = "Activo", // Solo Admin puede cambiar
-    val tipoBaja: String = "Todos" // Solo Admin
+    val tipo: String = "Activo",
+    val tipoBaja: String = "Todos"
 )
 
 @Composable
@@ -60,19 +58,18 @@ fun GanadoListScreen(
     container: AppContainer,
     onOpenDrawer: () -> Unit,
     onAgregarAnimal: () -> Unit,
-    onAnimalClick: (String) -> Unit = {}
+    onAnimalClick: (String) -> Unit = {},
+    initialSexo: String = "Todos"
 ) {
     var query by remember { mutableStateOf("") }
-    var filters by remember { mutableStateOf(GanadoFilters()) }
+    var filters by remember(initialSexo) { mutableStateOf(GanadoFilters(sexo = initialSexo)) }
     val isAdmin = SessionManager.isAdmin()
 
-    // Lógica de búsqueda y filtrado
     val animalesActivosFlow = remember(isAdmin, query, filters) {
         container.ganadoRepository.activos().map { list ->
             if (query.isNotBlank()) {
                 list.filter { it.numeroArete.contains(query, ignoreCase = true) }
             } else {
-                // Aplicar filtros solo si el tipo es Activo o Todos
                 if (filters.tipo == "Archivado") emptyList()
                 else list.filter { animal ->
                     val matchSexo = filters.sexo == "Todos" || animal.sexo.name == filters.sexo.uppercase()
@@ -192,13 +189,11 @@ private fun GanadoListContent(
     onEscanearClick: () -> Unit,
     onFilterClick: () -> Unit
 ) {
-    // Cálculos Activos
     val machosA = animalesActivos.count { it.sexo == Sexo.MACHO }
     val hembrasA = animalesActivos.count { it.sexo == Sexo.HEMBRA }
     val acopio = animalesActivos.count { it.fase == FaseGanado.ACOPIO }
     val desarrollo = animalesActivos.count { it.fase == FaseGanado.DESARROLLO }
 
-    // Cálculos Archivados (Solo Admin)
     val machosH = animalesArchivados.count { it.sexo == Sexo.MACHO }
     val hembrasH = animalesArchivados.count { it.sexo == Sexo.HEMBRA }
     val bajasVenta = animalesArchivados.count { it.estadoInventario == EstadoInventario.VENDIDO }
@@ -216,11 +211,22 @@ private fun GanadoListContent(
                                 Badge(containerColor = RanchoAccent)
                             }
                         }) {
-                            Icon(Icons.Default.FilterList, "Filtros")
+                            Icon(Icons.Default.FilterList, "Filtros", tint = MaterialTheme.colorScheme.onBackground)
                         }
                     }
                 }
             ) 
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAgregarAnimal,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = CircleShape,
+                modifier = Modifier.size(56.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Registrar Nuevo Animal", modifier = Modifier.size(26.dp))
+            }
         },
         bottomBar = {
             AnimatedVisibility(
@@ -237,55 +243,92 @@ private fun GanadoListContent(
             }
         }
     ) { padding ->
-        Column(Modifier.padding(padding).padding(horizontal = 16.dp)) {
-            // Buscador
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Buscar por arete") },
-                    leadingIcon = { Icon(Icons.Default.Search, null) },
-                    trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            IconButton(onClick = { onQueryChange("") }) { Icon(Icons.Default.Clear, null) }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    onClick = onEscanearClick,
-                    modifier = Modifier.size(width = 80.dp, height = 56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(0.dp)
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(Modifier.height(8.dp))
+
+            // BUSCADOR INTEGRADO CON BOTÓN ESCANEAR
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(16.dp),
+                shadowElevation = 1.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.ViewWeek, null)
-                        Text("Escanear", fontSize = 10.sp)
+                    Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(8.dp))
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = onQueryChange,
+                        placeholder = { Text("Buscar por arete", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = { onQueryChange("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Limpiar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Button(
+                        onClick = onEscanearClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.ViewWeek, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Escanear", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
 
-            
-            Spacer(Modifier.height(12.dp))
-            Button(onClick = onAgregarAnimal, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("Registrar Nuevo Animal")
-            }
             Spacer(Modifier.height(16.dp))
 
             if (animalesActivos.isEmpty() && animalesArchivados.isEmpty() && query.isNotEmpty()) {
                 EmptyState(icon = Icons.Default.Search, title = "Sin coincidencias", subtitle = "No hay resultados para \"$query\"")
             }
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f)) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 80.dp),
+                modifier = Modifier.weight(1f)
+            ) {
                 // INVENTARIO ACTIVO
                 if (animalesActivos.isNotEmpty()) {
-                    item { Text("Inventario Activo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RanchoPrimary) }
+                    item {
+                        Text(
+                            text = "Inventario Activo",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                     items(animalesActivos, key = { "act_${it.numeroArete}" }) { animal ->
                         val rango = rangos.firstOrNull { animal.pesoEntrada in it.limiteInferior..it.limiteSuperior }
-                        AnimalRow(animal = animal, rangoLabel = rango?.nombreRango ?: "Sin clasificar", onClick = { onAnimalClick(animal.numeroArete) })
+                        AnimalRowModern(
+                            animal = animal,
+                            rangoLabel = rango?.nombreRango ?: "Sin clasificar",
+                            onClick = { onAnimalClick(animal.numeroArete) }
+                        )
                     }
                 }
 
@@ -294,14 +337,174 @@ private fun GanadoListContent(
                     item {
                         Column {
                             Spacer(Modifier.height(16.dp))
-                            HorizontalDivider(thickness = 2.dp, color = RanchoPrimary.copy(alpha = 0.1f))
+                            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             Spacer(Modifier.height(16.dp))
-                            Text("Inventario Archivado", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RanchoTextSecondary)
+                            Text(
+                                text = "Inventario Archivado",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                     items(animalesArchivados, key = { "arc_${it.numeroArete}" }) { animal ->
                         val rango = rangos.firstOrNull { animal.pesoEntrada in it.limiteInferior..it.limiteSuperior }
-                        AnimalRow(animal = animal, rangoLabel = rango?.nombreRango ?: "Sin clasificar", isArchived = true, onClick = { onAnimalClick(animal.numeroArete) })
+                        AnimalRowModern(
+                            animal = animal,
+                            rangoLabel = rango?.nombreRango ?: "Sin clasificar",
+                            isArchived = true,
+                            onClick = { onAnimalClick(animal.numeroArete) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnimalRowModern(
+    animal: Animal,
+    rangoLabel: String,
+    isArchived: Boolean = false,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isArchived) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isArchived) 0.dp else 1.5.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            // FILA SUPERIOR: BADGE ARETE + BADGE RANGO + BADGE PENDIENTE
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AreteTag(arete = animal.numeroArete, tipo = animal.tipoArete)
+                Spacer(Modifier.width(8.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(50)
+                ) {
+                    Text(
+                        text = rangoLabel,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (animal.estadoAprobacion == EstadoAprobacion.PENDIENTE) {
+                    Spacer(Modifier.width(8.dp))
+                    Surface(
+                        color = Color(0xFFFEF3C7),
+                        shape = RoundedCornerShape(50)
+                    ) {
+                        Text(
+                            text = "Pendiente",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFD97706)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // FILA CONTENIDO: FOTO IZQUIERDA + DETALLES DERECHA
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // FOTOGRAFÍA O THUMBNAIL
+                Box(
+                    modifier = Modifier
+                        .size(84.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (!animal.fotografiaLocal.isNullOrBlank()) {
+                        AsyncImage(
+                            model = animal.fotografiaLocal,
+                            contentDescription = "Foto animal ${animal.numeroArete}",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(56.dp)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(14.dp))
+
+                // COLUMNA DE INFORMACIÓN
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "${if (animal.sexo == Sexo.MACHO) "Macho" else "Hembra"} · ${animal.color}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    val dias = ((System.currentTimeMillis() - animal.fechaEntrada) / (1000 * 60 * 60 * 24)).coerceAtLeast(0)
+                    Text(
+                        text = "${animal.pesoEntrada.toInt()} kg · $dias días",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+
+                    if (isArchived) {
+                        val (causa, color) = when {
+                            animal.estadoInventario == EstadoInventario.MUERTO -> "Muerte" to RanchoError
+                            animal.tipoBaja == TipoBaja.VENTA -> "Venta" to RanchoSuccess
+                            else -> "Archivado" to RanchoTextSecondary
+                        }
+                        Surface(color = color.copy(alpha = 0.12f), shape = RoundedCornerShape(50)) {
+                            Text(
+                                text = causa,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = color
+                            )
+                        }
+                    } else {
+                        Surface(
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                            shape = RoundedCornerShape(50)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = if (animal.fase == FaseGanado.ACOPIO) "Acopio" else "Desarrollo",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -313,16 +516,15 @@ private data class SummaryData(val total: Int, val machos: Int, val hembras: Int
 
 @Composable
 private fun GanadoSummaryFooter(isAdmin: Boolean, filters: GanadoFilters, activos: SummaryData, archivados: SummaryData) {
-    var seccionExpandida by remember { mutableStateOf<String?>(null) } // "activos" o "archivados"
+    var seccionExpandida by remember { mutableStateOf<String?>(null) }
     
-    // Si el filtro es "Activo", forzar el colapso de archivados
     if (filters.tipo == "Activo" && seccionExpandida == "archivados") {
         seccionExpandida = null
     }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.surfaceVariant,
         tonalElevation = 8.dp,
         shadowElevation = 12.dp,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
@@ -352,7 +554,7 @@ private fun GanadoSummaryFooter(isAdmin: Boolean, filters: GanadoFilters, activo
                     },
                     labels = Pair("Ventas", "Muertes"),
                     icons = Pair(Icons.Default.Sell, Icons.Default.HeartBroken),
-                    accentColor = RanchoTextSecondary
+                    accentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -367,7 +569,7 @@ private fun SummaryAccordion(
     onToggle: () -> Unit,
     labels: Pair<String, String>,
     icons: Pair<ImageVector, ImageVector>,
-    accentColor: Color = RanchoPrimary
+    accentColor: Color = MaterialTheme.colorScheme.primary
 ) {
     Card(
         onClick = onToggle,
@@ -382,8 +584,8 @@ private fun SummaryAccordion(
             AnimatedVisibility(visible = isExpanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     SummaryBox(modifier = Modifier.weight(1f), title = "Por Sexo", items = listOf(
-                        SummaryItemData("Machos", data.machos.toString(), Icons.Default.Male, Color(0xFF2196F3)),
-                        SummaryItemData("Hembras", data.hembras.toString(), Icons.Default.Female, Color(0xFFE91E63))
+                        SummaryItemData("Machos", data.machos.toString(), Icons.Default.Male, Color(0xFF38BDF8)),
+                        SummaryItemData("Hembras", data.hembras.toString(), Icons.Default.Female, Color(0xFFFB923C))
                     ), totalValue = (data.machos + data.hembras).toString())
                     SummaryBox(modifier = Modifier.weight(1f), title = "Causas", items = listOf(
                         SummaryItemData(labels.first, data.c1.toString(), icons.first, accentColor),
@@ -399,79 +601,23 @@ private data class SummaryItemData(val label: String, val value: String, val ico
 
 @Composable
 private fun SummaryBox(modifier: Modifier = Modifier, title: String, items: List<SummaryItemData>, totalValue: String? = null) {
-    Column(modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(16.dp)).padding(12.dp)) {
-        Text(title, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = RanchoTextSecondary)
+    Column(modifier = modifier.background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp)).padding(12.dp)) {
+        Text(title, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
         items.forEach { item ->
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(item.icon, null, modifier = Modifier.size(14.dp), tint = item.color)
-                    Spacer(Modifier.width(6.dp)); Text(item.label, style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.width(6.dp)); Text(item.label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                 }
-                Text(item.value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                Text(item.value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
         }
         if (totalValue != null) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Total", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = RanchoPrimary)
-                Text(totalValue, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Black, color = RanchoPrimary)
-            }
-        }
-    }
-}
-
-@Composable
-private fun AnimalRow(animal: Animal, rangoLabel: String, isArchived: Boolean = false, onClick: () -> Unit) {
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = if (isArchived) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = if (isArchived) 0.dp else 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                AreteTag(animal.numeroArete, animal.tipoArete); Spacer(Modifier.width(8.dp))
-                Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(50)) {
-                    Text(text = rangoLabel, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                }
-                if (animal.estadoAprobacion == EstadoAprobacion.PENDIENTE) {
-                    Spacer(Modifier.width(8.dp))
-                    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(50)) {
-                        Text(text = "Pendiente", modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(90.dp).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
-                    if (animal.fotografiaLocal != null) {
-                        AsyncImage(model = animal.fotografiaLocal, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    } else {
-                        Icon(imageVector = ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder), contentDescription = null, tint = if (isArchived) RanchoTextSecondary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), modifier = Modifier.size(64.dp))
-                    }
-                }
-                Spacer(Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "${if (animal.sexo == Sexo.MACHO) "Macho" else "Hembra"} · ${animal.color} ", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = if (isArchived) RanchoTextSecondary else MaterialTheme.colorScheme.onSurface)
-                    Text(text = "Peso: ${animal.pesoEntrada.toInt()} kg", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    val dias = ((System.currentTimeMillis() - animal.fechaEntrada) / (1000 * 60 * 60 * 24)).coerceAtLeast(0)
-                    Text(text = "Estancia: $dias días", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(8.dp))
-                    if (isArchived) {
-                        val (causa, color) = when {
-                            animal.estadoInventario == EstadoInventario.MUERTO -> "Muerte" to RanchoError
-                            animal.tipoBaja == TipoBaja.VENTA -> "Venta" to RanchoSuccess
-                            else -> "Archivado" to RanchoTextSecondary
-                        }
-                        Surface(color = color.copy(alpha = 0.1f), shape = RoundedCornerShape(50)) {
-                            Text(text = causa, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = color)
-                        }
-                    } else {
-                        EtapaBadge(animal.fase)
-                    }
-                }
+                Text("Total", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text(totalValue, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -497,23 +643,20 @@ private fun FilterDialog(
         onDismissRequest = onDismiss,
         title = { 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.FilterAlt, null, tint = RanchoPrimary)
+                Icon(Icons.Default.FilterAlt, null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
-                Text("Filtros de Ganado")
+                Text("Filtros de Ganado", color = MaterialTheme.colorScheme.onSurface)
             }
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Filtro: Sexo
                 FilterSegment(label = "Sexo", selected = sexo, options = listOf("Todos", "Macho", "Hembra")) { sexo = it }
                 
-                // Filtro: Fase (Solo para activos/todos)
                 if (tipo != "Archivado") {
                     FilterSegment(label = "Fase", selected = fase, options = listOf("Todos", "Acopio", "Desarrollo")) { fase = it }
                 }
 
-                // Filtro: Color
-                Text("Color", style = MaterialTheme.typography.labelMedium, color = RanchoTextSecondary)
+                Text("Color", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 ScrollableRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     opcionesColor.forEach { c ->
                         FilterChip(
@@ -526,10 +669,8 @@ private fun FilterDialog(
 
                 if (isAdmin) {
                     HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                    // Filtro: Tipo
                     FilterSegment(label = "Tipo de Inventario", selected = tipo, options = listOf("Activo", "Archivado", "Todos")) { tipo = it }
                     
-                    // Filtro: Tipo de Baja
                     if (tipo != "Activo") {
                         FilterSegment(label = "Causa de Baja", selected = tipoBaja, options = listOf("Todos", "Venta", "Muerte")) { tipoBaja = it }
                     }
@@ -552,7 +693,7 @@ private fun FilterDialog(
 @Composable
 private fun FilterSegment(label: String, selected: String, options: List<String>, onSelect: (String) -> Unit) {
     Column {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = RanchoTextSecondary)
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { opt ->

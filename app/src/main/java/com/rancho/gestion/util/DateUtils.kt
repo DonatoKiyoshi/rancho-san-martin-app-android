@@ -7,6 +7,14 @@ import java.util.Locale
 
 enum class Periodo { DIARIO, SEMANAL, MENSUAL, ANUAL }
 
+sealed class FiltroFechas {
+    data class Ultimo(val periodo: Periodo) : FiltroFechas()
+    data class EspecificoDia(val anio: Int, val mes: Int, val dia: Int) : FiltroFechas()
+    data class EspecificoSemana(val anio: Int, val mes: Int, val semana: Int) : FiltroFechas()
+    data class EspecificoMes(val anio: Int, val mes: Int) : FiltroFechas()
+    data class EspecificoAnio(val anio: Int) : FiltroFechas()
+}
+
 /**
  * Utilidades de fecha para reportes. La nota del boceto pide que la fecha
  * de corte de los reportes sea siempre el día 1 de cada mes.

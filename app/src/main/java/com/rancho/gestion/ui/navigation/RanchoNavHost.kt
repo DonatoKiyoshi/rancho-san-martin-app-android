@@ -7,17 +7,19 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.rancho.gestion.AppContainer
 import com.rancho.gestion.ui.components.AppDrawerContent
 import com.rancho.gestion.ui.configuracion.ConfiguracionScreen
- import com.rancho.gestion.ui.configuracion.UsuariosScreen
+import com.rancho.gestion.ui.configuracion.UsuariosScreen
+import com.rancho.gestion.ui.finanzas.FinanzasScreen
 import com.rancho.gestion.ui.ganado.DetalleAnimalScreen
 import com.rancho.gestion.ui.ganado.DetalleAprobacionAnimalScreen
-import com.rancho.gestion.ui.finanzas.FinanzasScreen
 import com.rancho.gestion.ui.ganado.GanadoListScreen
 import com.rancho.gestion.ui.ganado.RegistrarAnimalScreen
 import com.rancho.gestion.ui.login.LoginScreen
@@ -49,7 +51,6 @@ fun RanchoNavHost(container: AppContainer) {
     val usuario by SessionManager.usuarioActual.collectAsState()
     val isAdmin = usuario?.let { SessionManager.isAdmin() } ?: false
 
-    // Contador global de pendientes para el Drawer (PROC-11)
     val totalPendientes by produceState(initialValue = 0, container, isAdmin) {
         if (isAdmin) {
             combine(
@@ -97,13 +98,40 @@ fun RanchoNavHost(container: AppContainer) {
                 if (isAdmin) {
                     PanelScreen(
                         container = container,
-                        onOpenDrawer = { scope.launch { drawerState.open() } }
+                        onOpenDrawer = { scope.launch { drawerState.open() } },
+                        onCabezasActivasClick = {
+                            navController.navigate(Screen.Ganado.createRoute("Todos"))
+                        },
+                        onToneladasActivasClick = {
+                            navController.navigate(Screen.ReportesGanado.createRoute(periodo = "ANUAL", estado = "ACTIVO"))
+                        },
+                        onMachosClick = {
+                            navController.navigate(Screen.Ganado.createRoute("Macho"))
+                        },
+                        onHembrasClick = {
+                            navController.navigate(Screen.Ganado.createRoute("Hembra"))
+                        },
+                        onEfectivoGanadoClick = {
+                            navController.navigate(Screen.ReportesGanado.createRoute(periodo = "ANUAL", estado = "ACTIVO"))
+                        },
+                        onEgresosPeriodoClick = {
+                            navController.navigate(Screen.Finanzas.route)
+                        }
                     )
                 } else if (usuario != null) {
                     LaunchedEffect(Unit) { goTo(Screen.Ganado.route) }
                 }
             }
-            composable(Screen.Ganado.route) {
+            composable(
+                route = Screen.Ganado.route,
+                arguments = listOf(
+                    navArgument("sexo") {
+                        type = NavType.StringType
+                        defaultValue = "Todos"
+                    }
+                )
+            ) { backStackEntry ->
+                val sexo = backStackEntry.arguments?.getString("sexo") ?: "Todos"
                 GanadoListScreen(
                     container = container,
                     onOpenDrawer = { scope.launch { drawerState.open() } },
@@ -112,7 +140,8 @@ fun RanchoNavHost(container: AppContainer) {
                         if (isAdmin) {
                             navController.navigate(Screen.DetalleAnimal.createRoute(arete))
                         }
-                    }
+                    },
+                    initialSexo = sexo
                 )
             }
             composable(Screen.RegistrarAnimal.route) {
@@ -156,8 +185,29 @@ fun RanchoNavHost(container: AppContainer) {
                     LaunchedEffect(Unit) { goTo(Screen.Ganado.route) }
                 }
             }
-            composable(Screen.ReportesGanado.route) {
-                if (isAdmin) ReportesGanadoScreen(container = container, onBack = { navController.popBackStack() })
+            composable(
+                route = Screen.ReportesGanado.route,
+                arguments = listOf(
+                    navArgument("periodo") {
+                        type = NavType.StringType
+                        defaultValue = "MENSUAL"
+                    },
+                    navArgument("estado") {
+                        type = NavType.StringType
+                        defaultValue = "TODOS"
+                    }
+                )
+            ) { backStackEntry ->
+                val periodo = backStackEntry.arguments?.getString("periodo") ?: "MENSUAL"
+                val estado = backStackEntry.arguments?.getString("estado") ?: "TODOS"
+                if (isAdmin) {
+                    ReportesGanadoScreen(
+                        container = container,
+                        onBack = { navController.popBackStack() },
+                        initialPeriodo = periodo,
+                        initialEstado = estado
+                    )
+                }
             }
             composable(Screen.ReportesFinanzas.route) {
                 if (isAdmin) ReportesFinanzasScreen(container = container, onBack = { navController.popBackStack() })

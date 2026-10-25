@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.ui.window.Dialog
 import com.rancho.gestion.data.entities.FaseGanado
 import com.rancho.gestion.data.entities.TipoArete
@@ -51,10 +52,10 @@ import com.rancho.gestion.ui.theme.RanchoWarningContainer
 @Composable
 fun BackTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
     TopAppBar(
-        title = { Text(title, fontWeight = FontWeight.Bold) },
+        title = { Text(title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground) },
         navigationIcon = {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Regresar")
+                Icon(Icons.Default.ArrowBack, contentDescription = "Regresar", tint = MaterialTheme.colorScheme.onBackground)
             }
         },
         actions = actions,
@@ -79,10 +80,10 @@ fun HomeTopBar(title: String, onHomeClick: () -> Unit, actions: @Composable RowS
     )
 
     TopAppBar(
-        title = { Text(title, fontWeight = FontWeight.Bold) },
+        title = { Text(title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground) },
         navigationIcon = {
             IconButton(onClick = onHomeClick) {
-                Icon(Icons.Default.Home, contentDescription = "Menú")
+                Icon(Icons.Default.Home, contentDescription = "Menú", tint = MaterialTheme.colorScheme.onBackground)
             }
         },
         actions = {
@@ -92,7 +93,7 @@ fun HomeTopBar(title: String, onHomeClick: () -> Unit, actions: @Composable RowS
                         imageVector = Icons.Default.Sync,
                         contentDescription = "Sincronizando",
                         modifier = Modifier.rotate(angle),
-                        tint = RanchoPrimary
+                        tint = MaterialTheme.colorScheme.primary
                     )
                     LaunchedEffect(isSyncing) {
                         kotlinx.coroutines.delay(3000)
@@ -102,7 +103,7 @@ fun HomeTopBar(title: String, onHomeClick: () -> Unit, actions: @Composable RowS
                     Icon(
                         imageVector = Icons.Default.CloudDone, 
                         contentDescription = "Sincronizado", 
-                        tint = RanchoTextSecondary.copy(alpha = 0.5f)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }
             }
@@ -119,13 +120,13 @@ fun StatCard(
     valor: String,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
-    accentColor: Color = RanchoPrimary
+    accentColor: Color = MaterialTheme.colorScheme.primary
 ) {
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = RanchoCard),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(Modifier.padding(vertical = 20.dp, horizontal = 18.dp)) {
             if (icon != null) {
@@ -133,7 +134,7 @@ fun StatCard(
                     Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(accentColor.copy(alpha = 0.12f)),
+                        .background(accentColor.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(20.dp))
@@ -162,21 +163,21 @@ fun StatCard(
             Text(
                 text = titulo, 
                 style = MaterialTheme.typography.labelMedium, 
-                color = RanchoTextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 letterSpacing = 0.5.sp
             )
         }
     }
 }
 
-/** Contenedor redondeado reutilizado en varias pantallas (Configuracion, Jaulas, etc). */
+/** Contenedor redondeado reutilizado en varias pantallas. */
 @Composable
 fun SectionCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = RanchoCard),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 4.dp)
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             Modifier.padding(20.dp),
@@ -189,8 +190,8 @@ fun SectionCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.
 @Composable
 fun AreteTag(arete: String, tipo: TipoArete = TipoArete.SADER) {
     val (backgroundColor, textColor) = when (tipo) {
-        TipoArete.SADER -> Color(0xFFFFD700) to Color.Black
-        TipoArete.OTRO -> Color(0xFF00CED1) to Color.White
+        TipoArete.SADER -> Color(0xFFFFD54F) to Color(0xFF0F172A)
+        TipoArete.OTRO -> Color(0xFF80CBC4) to Color(0xFF0F172A)
     }
 
     Box(
@@ -211,7 +212,7 @@ fun AreteTag(arete: String, tipo: TipoArete = TipoArete.SADER) {
 @Composable
 fun EtapaBadge(fase: FaseGanado, modifier: Modifier = Modifier) {
     val (dotColor, containerColor, textColor, label) = when (fase) {
-        FaseGanado.ACOPIO -> BadgeColors(RanchoPrimary, RanchoSecondary, RanchoPrimary, "Acopio")
+        FaseGanado.ACOPIO -> BadgeColors(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, "Acopio")
         FaseGanado.DESARROLLO -> BadgeColors(RanchoSuccess, RanchoSuccessContainer, RanchoSuccess, "Desarrollo")
     }
     Surface(color = containerColor, shape = RoundedCornerShape(50), modifier = modifier) {
@@ -236,106 +237,81 @@ fun MenuOptionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
-    accentColor: Color = RanchoPrimary,
+    accentColor: Color = MaterialTheme.colorScheme.primary,
     tint: Color = accentColor
 ) {
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = RanchoCard),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 3.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
         onClick = onClick
     ) {
         Row(
-            modifier = Modifier
-                .padding(vertical = 18.dp, horizontal = 18.dp),
+            modifier = Modifier.padding(18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 Modifier
-                    .size(46.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .background(accentColor.copy(alpha = 0.14f)),
+                    .background(accentColor.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = tint)
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
             }
+
             Spacer(Modifier.width(16.dp))
+
             Column(Modifier.weight(1f)) {
-                Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(
+                    text = label, 
+                    style = MaterialTheme.typography.titleMedium, 
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 if (subtitle != null) {
                     Spacer(Modifier.height(2.dp))
-                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = RanchoTextSecondary)
+                    Text(
+                        text = subtitle, 
+                        style = MaterialTheme.typography.bodySmall, 
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = RanchoTextSecondary)
-        }
-    }
-}
 
-/** Estado vacío ilustrado (ícono + texto), usado en listas sin resultados. */
-@Composable
-fun EmptyState(
-    icon: ImageVector,
-    title: String,
-    modifier: Modifier = Modifier,
-    subtitle: String? = null
-) {
-    Column(
-        modifier
-            .fillMaxWidth()
-            .padding(vertical = 40.dp, horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(RanchoCard),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = RanchoTextSecondary, modifier = Modifier.size(32.dp))
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            title,
-            style = MaterialTheme.typography.titleMedium,
-            textAlign = TextAlign.Center
-        )
-        if (subtitle != null) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = RanchoTextSecondary,
-                textAlign = TextAlign.Center
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
 }
 
-/** Barra de progreso etiquetada, usada en la pantalla de Jaulas (Cabezas / Toneladas). */
+/** Barra de progreso con etiqueta usada en Jaulas. */
 @Composable
-fun LabeledProgressBar(label: String, actual: String, total: String, progress: Float) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, style = MaterialTheme.typography.bodyMedium)
-            Text("$actual/$total", style = MaterialTheme.typography.bodyMedium)
+fun LabeledProgressBar(label: String, val1: String, val2: String, progress: Float) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("$val1 / $val2", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         }
         Spacer(Modifier.height(4.dp))
         LinearProgressIndicator(
             progress = { progress.coerceIn(0f, 1f) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(10.dp)
-                .clip(RoundedCornerShape(50)),
-            color = RanchoPrimary,
-            trackColor = MaterialTheme.colorScheme.surface
+            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
         )
     }
 }
 
-/** Diálogo de confirmación genérico (Sí / No), como el de Registrar Muerte. */
+/** Diálogo de confirmación genérico con ícono de advertencia. */
 @Composable
 fun ConfirmDialog(
     title: String,
@@ -344,18 +320,37 @@ fun ConfirmDialog(
     onDismiss: () -> Unit,
     confirmLabel: String = "Sí",
     dismissLabel: String = "No",
-    confirmEnabled: Boolean = true
+    confirmEnabled: Boolean = true,
+    icon: ImageVector? = Icons.Default.Warning
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(message) },
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = "Advertencia",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                }
+                Text(
+                    title,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
+        },
+        text = { Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant) },
         confirmButton = { 
             Button(
                 onClick = { onConfirm() },
                 enabled = confirmEnabled
             ) { 
-                Text(confirmLabel) 
+                Text(confirmLabel, fontWeight = FontWeight.Bold) 
             } 
         },
         dismissButton = { 
@@ -366,135 +361,138 @@ fun ConfirmDialog(
     )
 }
 
-/** Diálogo simple para formularios cortos (Nueva Jaula, Registrar Egreso, etc). */
+/** Diálogo informativo simple con un solo botón de aceptación. */
 @Composable
-fun SimpleFormDialog(
-    title: String,
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-    confirmLabel: String = "Guardar",
-    confirmEnabled: Boolean = true,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.padding(20.dp)) {
-                Text(title, style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(12.dp))
-                content()
-                Spacer(Modifier.height(16.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("Cancelar") }
-                    Spacer(Modifier.width(8.dp))
-                    Button(onClick = onConfirm, enabled = confirmEnabled) { Text(confirmLabel) }
-                }
-            }
-        }
-    }
-}
-
-/** Diálogo de éxito con check verde, usado tras registros o ventas. */
-@Composable
-fun SuccessDialog(
-    title: String = "¡Operación Exitosa!",
-    message: String,
-    onContinuar: () -> Unit,
-    onSalir: () -> Unit,
-    continuarLabel: String = "Continuar"
-) {
-    Dialog(onDismissRequest = {}) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.width(320.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // Green Check Icon
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .border(4.dp, RanchoSuccess, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        tint = RanchoSuccess,
-                        modifier = Modifier.size(48.dp)
-                    )
-                }
-
-                Spacer(Modifier.height(24.dp))
-
-                Text(
-                    title,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                    color = RanchoTextSecondary
-                )
-
-                Spacer(Modifier.height(32.dp))
-
-                Button(
-                    onClick = onContinuar,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(containerColor = RanchoPrimary)
-                ) {
-                    Text(continuarLabel, fontWeight = FontWeight.Bold)
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                OutlinedButton(
-                    onClick = onSalir,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(50)
-                ) {
-                    Text("Salir", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-/** Diálogo de advertencia/información (ej. validación de fase Desarrollo). */
-@Composable
-fun InfoDialog(
-    title: String,
-    message: String,
-    onDismiss: () -> Unit
-) {
+fun InfoDialog(title: String, message: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp)) },
-        title = { Text(title, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
-        text = { Text(message, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center) },
+        title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
+        text = { Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant) },
         confirmButton = {
-            Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-                Text("Entendido")
+            TextButton(onClick = onDismiss) {
+                Text("Aceptar")
             }
         }
     )
 }
 
+/** Diálogo modal con barra superior de confirmación para mensajes de éxito. */
+@Composable
+fun SuccessDialog(
+    title: String,
+    message: String,
+    onContinuar: () -> Unit,
+    onSalir: () -> Unit,
+    continuarLabel: String = "Continuar",
+    salirLabel: String = "Salir a Ganado"
+) {
+    AlertDialog(
+        onDismissRequest = { },
+        icon = {
+            Box(
+                Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(RanchoSuccessContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    tint = RanchoSuccess,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        },
+        title = { 
+            Text(
+                title, 
+                style = MaterialTheme.typography.titleLarge, 
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.fillMaxWidth()
+            ) 
+        },
+        text = { 
+            Text(
+                message, 
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth()
+            ) 
+        },
+        confirmButton = {
+            Button(
+                onClick = onContinuar,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(continuarLabel)
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onSalir,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(salirLabel)
+            }
+        }
+    )
+}
+
+/** Pantalla o tarjeta de estado vacío cuando no existen registros. */
+@Composable
+fun EmptyState(icon: ImageVector, title: String, subtitle: String = "") {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+        Spacer(Modifier.height(16.dp))
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+        if (subtitle.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        }
+    }
+}
+
+/** Formulario dentro de un diálogo modal simple. */
+@Composable
+fun SimpleFormDialog(
+    title: String,
+    onDismiss: () -> Unit,
+    confirmLabel: String = "Guardar",
+    confirmEnabled: Boolean = true,
+    onConfirm: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) },
+        text = {
+            Column(Modifier.fillMaxWidth()) {
+                content()
+            }
+        },
+        confirmButton = {
+            Button(onClick = onConfirm, enabled = confirmEnabled) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+/** Transformación visual para separador de miles con comas. */
 class ThousandsSeparatorVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val originalText = text.text
@@ -528,30 +526,26 @@ class ThousandsSeparatorVisualTransformation : VisualTransformation {
                     }
                     realOffset + commas
                 } else {
-                    val totalCommas = if (integerLength > 0) (integerLength - 1) / 3 else 0
-                    realOffset + totalCommas
+                    val commasInInteger = if (integerLength > 0) (integerLength - 1) / 3 else 0
+                    realOffset + commasInInteger
                 }
             }
 
             override fun transformedToOriginal(offset: Int): Int {
                 if (offset <= 0) return 0
+                val transformedStr = out
                 val integerLength = integerPart.length
-                val totalCommas = if (integerLength > 0) (integerLength - 1) / 3 else 0
-                val formattedIntegerLength = integerLength + totalCommas
-                
-                return if (offset <= formattedIntegerLength) {
-                    var originalOffset = 0
-                    var transformedOffset = 0
-                    while (transformedOffset < offset && originalOffset < integerLength) {
-                        originalOffset++
-                        transformedOffset++
-                        if ((integerLength - originalOffset) % 3 == 0 && originalOffset < integerLength && transformedOffset < offset) {
-                            transformedOffset++
-                        }
+                val commasInInteger = if (integerLength > 0) (integerLength - 1) / 3 else 0
+                val transformedIntegerLength = integerLength + commasInInteger
+
+                return if (offset <= transformedIntegerLength) {
+                    var commasBefore = 0
+                    for (i in 0 until offset.coerceAtMost(transformedStr.length)) {
+                        if (transformedStr[i] == ',') commasBefore++
                     }
-                    originalOffset
+                    (offset - commasBefore).coerceIn(0, integerLength)
                 } else {
-                    (offset - totalCommas).coerceAtMost(originalText.length)
+                    (offset - commasInInteger).coerceIn(0, originalText.length)
                 }
             }
         }

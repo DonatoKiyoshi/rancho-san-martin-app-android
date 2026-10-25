@@ -1,9 +1,12 @@
 package com.rancho.gestion.ui.configuracion
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -12,13 +15,20 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.NightsStay
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -26,6 +36,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
 import com.rancho.gestion.AppContainer
 import com.rancho.gestion.data.entities.RangoPeso
@@ -36,6 +47,7 @@ import com.rancho.gestion.ui.components.MenuOptionCard
 import com.rancho.gestion.ui.components.SectionCard
 import com.rancho.gestion.ui.theme.RanchoPrimary
 import com.rancho.gestion.ui.theme.SanMartinOrange
+import com.rancho.gestion.util.AppThemeMode
 import com.rancho.gestion.util.SessionManager
 import kotlinx.coroutines.launch
 
@@ -53,9 +65,11 @@ fun ConfiguracionScreen(
     val context = LocalContext.current
     val activity = context as? FragmentActivity
     val biometricAuthManager = container.biometricAuthManager
+    val themeManager = container.themeManager
 
     var biometricEnabled by remember { mutableStateOf(biometricAuthManager.isBiometricEnabled()) }
     val biometricAvailable = remember { biometricAuthManager.isBiometricAvailable() }
+    val currentThemeMode by themeManager.themeMode.collectAsState()
 
     // Estados para dialogo de confirmacion del switch biometrico
     var mostrarDialogoConfirmacionBiometria by remember { mutableStateOf(false) }
@@ -67,6 +81,8 @@ fun ConfiguracionScreen(
         idUsuarioActual = usuario?.idUsuario ?: -1L,
         biometricAvailable = biometricAvailable,
         biometricEnabled = biometricEnabled,
+        currentThemeMode = currentThemeMode,
+        onThemeModeChange = { newMode -> themeManager.setThemeMode(newMode) },
         onRequestToggleBiometric = { estadoDeseado ->
             estadoBiometricoDeseado = estadoDeseado
             mostrarDialogoConfirmacionBiometria = true
@@ -118,7 +134,6 @@ fun ConfiguracionScreen(
                         if (esActivar) {
                             val user = usuario
                             if (user != null && activity != null) {
-                                // Solicitamos escanear la huella o rostro para confirmar la activación
                                 biometricAuthManager.autenticar(
                                     activity = activity,
                                     title = "Confirmar Activación Biométrica",
@@ -161,6 +176,8 @@ private fun ConfiguracionContent(
     idUsuarioActual: Long,
     biometricAvailable: Boolean,
     biometricEnabled: Boolean,
+    currentThemeMode: AppThemeMode,
+    onThemeModeChange: (AppThemeMode) -> Unit,
     onRequestToggleBiometric: (Boolean) -> Unit,
     onOpenDrawer: () -> Unit,
     onNavigateToUsuarios: () -> Unit,
@@ -173,6 +190,7 @@ private fun ConfiguracionContent(
     var nuevoMax by remember { mutableStateOf("") }
     var errorRango by remember { mutableStateOf<String?>(null) }
     var mostrarAlertaLimiteRangos by remember { mutableStateOf(false) }
+    var rangoAEliminar by remember { mutableStateOf<RangoPeso?>(null) }
     val scope = rememberCoroutineScope()
     
     var seccionExpandida by remember { mutableStateOf<String?>(null) }
@@ -182,71 +200,11 @@ private fun ConfiguracionContent(
             Modifier
                 .padding(padding)
                 .padding(horizontal = 20.dp)
-                .verticalScrollFix()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
         ) {
             if (isAdmin) {
-                MenuOptionCard(
-                    label = "Administración de Usuarios",
-                    subtitle = "Alta, edición, baja y restablecimiento de contraseña de Empleados",
-                    icon = Icons.Default.Group,
-                    onClick = onNavigateToUsuarios
-                )
-                Spacer(Modifier.height(16.dp))
-            }
-
-            // SECCIÓN: Inicio de Sesión Biométrico (Huella / Rostro)
-            if (biometricAvailable) {
-                SectionCard {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onRequestToggleBiometric(!biometricEnabled) },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Fingerprint,
-                                contentDescription = null,
-                                tint = SanMartinOrange,
-                                modifier = Modifier.size(28.dp)
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "Inicio de Sesión Biométrico",
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    text = "Accede con tu huella dactilar o reconocimiento facial registrado en tu dispositivo",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Switch(
-                            checked = biometricEnabled,
-                            onCheckedChange = { nuevoEstado ->
-                                onRequestToggleBiometric(nuevoEstado)
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                                checkedTrackColor = SanMartinOrange
-                            )
-                        )
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-            }
-
-            if (isAdmin) {
-                // SECCIÓN: Rangos de Clasificación
+                // 1. SECCIÓN: Rangos de Clasificación
                 MenuOptionCard(
                     label = "Rangos de Clasificación",
                     subtitle = "Gestionar categorías de clasificación por peso",
@@ -272,7 +230,10 @@ private fun ConfiguracionContent(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text("${rango.nombreRango}: ${rango.limiteInferior.toInt()} a ${rango.limiteSuperior.toInt()} kg", style = MaterialTheme.typography.bodyMedium)
-                                    IconButton(onClick = { onEliminarRango(rango) }, modifier = Modifier.size(24.dp)) {
+                                    IconButton(
+                                        onClick = { rangoAEliminar = rango },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
                                         Icon(Icons.Default.Close, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                                     }
                                 }
@@ -371,10 +332,206 @@ private fun ConfiguracionContent(
                     }
                 }
                 Spacer(Modifier.height(16.dp))
+
+                // 2. SECCIÓN: Administración de Usuarios
+                MenuOptionCard(
+                    label = "Administración de Usuarios",
+                    subtitle = "Alta, edición, baja y restablecimiento de contraseña de Empleados",
+                    icon = Icons.Default.Group,
+                    onClick = onNavigateToUsuarios
+                )
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // 3. SECCIÓN: Tema de la App
+            SectionCard {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // 1. TÍTULO Y ÍCONO (Arriba)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = null,
+                                tint = SanMartinOrange,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = "Tema de la app",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+
+                    // 2. BOTONES PARA CAMBIAR TEMA (Abajo del título)
+                    Surface(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                        shape = RoundedCornerShape(50),
+                        modifier = Modifier.fillMaxWidth().height(42.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Opción Claro
+                            val isClaro = currentThemeMode == AppThemeMode.CLARO
+                            val claroBg by animateColorAsState(
+                                targetValue = if (isClaro) SanMartinOrange else Color.Transparent,
+                                animationSpec = tween(250),
+                                label = "claroBg"
+                            )
+                            val claroContent by animateColorAsState(
+                                targetValue = if (isClaro) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                animationSpec = tween(250),
+                                label = "claroTxt"
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(50))
+                                    .background(claroBg)
+                                    .clickable { onThemeModeChange(AppThemeMode.CLARO) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.WbSunny,
+                                        contentDescription = "Claro",
+                                        tint = claroContent,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "Claro",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = claroContent
+                                    )
+                                }
+                            }
+
+                            // Opción Oscuro
+                            val isOscuro = currentThemeMode == AppThemeMode.OSCURO
+                            val oscuroBg by animateColorAsState(
+                                targetValue = if (isOscuro) SanMartinOrange else Color.Transparent,
+                                animationSpec = tween(250),
+                                label = "oscuroBg"
+                            )
+                            val oscuroContent by animateColorAsState(
+                                targetValue = if (isOscuro) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                animationSpec = tween(250),
+                                label = "oscuroTxt"
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(50))
+                                    .background(oscuroBg)
+                                    .clickable { onThemeModeChange(AppThemeMode.OSCURO) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.NightsStay,
+                                        contentDescription = "Oscuro",
+                                        tint = oscuroContent,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "Oscuro",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = oscuroContent
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    // 3. DESCRIPCIÓN (Al último)
+                    Text(
+                        text = "Cambia el aspecto visual de la aplicación",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            // 4. SECCIÓN: Inicio de Sesión Biométrico (Huella / Rostro)
+            if (biometricAvailable) {
+                SectionCard {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onRequestToggleBiometric(!biometricEnabled) },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Fingerprint,
+                                contentDescription = null,
+                                tint = SanMartinOrange,
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Inicio de Sesión Biométrico",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = "Accede con tu huella dactilar o reconocimiento facial registrado en tu dispositivo",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Switch(
+                            checked = biometricEnabled,
+                            onCheckedChange = { nuevoEstado ->
+                                onRequestToggleBiometric(nuevoEstado)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                checkedTrackColor = SanMartinOrange
+                            )
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
             }
 
             if (idUsuarioActual != 1L) {
-                // SECCIÓN: Cambiar Contraseña
+                // 5. SECCIÓN: Cambiar Contraseña
                 MenuOptionCard(
                     label = "Cambiar Contraseña",
                     subtitle = "Actualiza tus credenciales de acceso",
@@ -397,6 +554,47 @@ private fun ConfiguracionContent(
             
             Spacer(Modifier.height(32.dp))
         }
+    }
+
+    // Diálogo de confirmación para eliminar rango de clasificación
+    if (rangoAEliminar != null) {
+        val r = rangoAEliminar!!
+        AlertDialog(
+            onDismissRequest = { rangoAEliminar = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("¿Eliminar Rango?", fontWeight = FontWeight.Bold)
+                }
+            },
+            text = {
+                Text(
+                    "¿Estás seguro de que deseas eliminar el rango ${r.nombreRango} de ${r.limiteInferior.toInt()} a ${r.limiteSuperior.toInt()} kg?"
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onEliminarRango(r)
+                        rangoAEliminar = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Sí, eliminar", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { rangoAEliminar = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 
     if (mostrarAlertaLimiteRangos) {
@@ -471,7 +669,7 @@ private fun CambiarContrasenaCard(onChangePassword: suspend (String, String) -> 
                     else -> scope.launch {
                         val ok = onChangePassword(actual, nueva)
                         esError = !ok
-                        mensaje = if (ok) "Contraseña actualizada correctamente." else "La contraseña actual is incorrecta."
+                        mensaje = if (ok) "Contraseña actualizada correctamente." else "La contraseña actual es incorrecta."
                         if (ok) { actual = ""; nueva = ""; confirmar = "" }
                     }
                 }
@@ -479,12 +677,6 @@ private fun CambiarContrasenaCard(onChangePassword: suspend (String, String) -> 
             modifier = Modifier.fillMaxWidth()
         ) { Text("Cambiar") }
     }
-}
-
-@Composable
-private fun Modifier.verticalScrollFix(): Modifier {
-    val scrollState = rememberScrollState()
-    return this.verticalScroll(scrollState)
 }
 
 @Preview(showBackground = true)
@@ -499,6 +691,8 @@ fun ConfiguracionPreview() {
             idUsuarioActual = 1L,
             biometricAvailable = true,
             biometricEnabled = true,
+            currentThemeMode = AppThemeMode.CLARO,
+            onThemeModeChange = {},
             onRequestToggleBiometric = {},
             onOpenDrawer = {},
             onAgregarRango = { _, _, _ -> ResultadoOperacion.Ok },

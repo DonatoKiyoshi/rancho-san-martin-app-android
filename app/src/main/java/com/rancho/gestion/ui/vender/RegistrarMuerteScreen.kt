@@ -139,7 +139,7 @@ private fun RegistrarMuerteStatelessContent(
     var error by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
+    val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX")) }
 
     LaunchedEffect(scannedArete) {
         if (scannedArete.isNotBlank()) {
@@ -183,14 +183,17 @@ private fun RegistrarMuerteStatelessContent(
             ) {
                 OutlinedTextField(
                     value = arete,
-                    onValueChange = {
-                        arete = it
-                        animalEncontrado = null
-                        noEncontrado = false
-                        mensajeExito = null
+                    onValueChange = { input ->
+                        if (input.all { c -> c.isDigit() } && input.length <= 15) {
+                            arete = input
+                            animalEncontrado = null
+                            noEncontrado = false
+                            mensajeExito = null
+                        }
                     },
                     label = { Text("Arete") },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(Modifier.width(8.dp))
@@ -198,12 +201,15 @@ private fun RegistrarMuerteStatelessContent(
                     onClick = onEscanearClick,
                     modifier = Modifier.size(width = 80.dp, height = 56.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = RanchoPrimary),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.ViewWeek, contentDescription = null)
-                        Text("Escanear", fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                        Icon(Icons.Default.ViewWeek, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                        Text("Escanear", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }

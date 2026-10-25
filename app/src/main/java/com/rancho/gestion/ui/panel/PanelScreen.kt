@@ -1,6 +1,7 @@
 package com.rancho.gestion.ui.panel
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -35,7 +36,6 @@ import com.rancho.gestion.ui.components.StatCard
 import com.rancho.gestion.ui.theme.RanchoAccent
 import com.rancho.gestion.ui.theme.RanchoCard
 import com.rancho.gestion.ui.theme.RanchoError
-import com.rancho.gestion.ui.theme.RanchoPrimary
 import com.rancho.gestion.ui.theme.RanchoSuccess
 import com.rancho.gestion.ui.theme.RanchoTextSecondary
 import com.rancho.gestion.util.DateUtils
@@ -55,7 +55,16 @@ private data class PanelStats(
 )
 
 @Composable
-fun PanelScreen(container: AppContainer, onOpenDrawer: () -> Unit) {
+fun PanelScreen(
+    container: AppContainer, 
+    onOpenDrawer: () -> Unit,
+    onCabezasActivasClick: () -> Unit = {},
+    onToneladasActivasClick: () -> Unit = {},
+    onMachosClick: () -> Unit = {},
+    onHembrasClick: () -> Unit = {},
+    onEfectivoGanadoClick: () -> Unit = {},
+    onEgresosPeriodoClick: () -> Unit = {}
+) {
     val currency = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
     val usuario by SessionManager.usuarioActual.collectAsState()
 
@@ -89,7 +98,13 @@ fun PanelScreen(container: AppContainer, onOpenDrawer: () -> Unit) {
         stats = stats,
         alertas = alertas,
         currency = currency,
-        onOpenDrawer = onOpenDrawer
+        onOpenDrawer = onOpenDrawer,
+        onCabezasActivasClick = onCabezasActivasClick,
+        onToneladasActivasClick = onToneladasActivasClick,
+        onMachosClick = onMachosClick,
+        onHembrasClick = onHembrasClick,
+        onEfectivoGanadoClick = onEfectivoGanadoClick,
+        onEgresosPeriodoClick = onEgresosPeriodoClick
     )
 }
 
@@ -99,7 +114,13 @@ private fun PanelContent(
     stats: PanelStats,
     alertas: List<Pair<Animal, EstadoEtapa>>,
     currency: NumberFormat,
-    onOpenDrawer: () -> Unit
+    onOpenDrawer: () -> Unit,
+    onCabezasActivasClick: () -> Unit,
+    onToneladasActivasClick: () -> Unit,
+    onMachosClick: () -> Unit,
+    onHembrasClick: () -> Unit,
+    onEfectivoGanadoClick: () -> Unit,
+    onEgresosPeriodoClick: () -> Unit
 ) {
     Scaffold(topBar = { HomeTopBar(title = "Panel", onHomeClick = onOpenDrawer) }) { padding ->
         LazyVerticalGrid(
@@ -137,17 +158,17 @@ private fun PanelContent(
                     titulo = "Cabezas activas",
                     valor = stats.cabezasActivas.toString(),
                     icon = ImageVector.vectorResource(id = R.drawable.ic_menu_ganado),
-                    accentColor = RanchoPrimary,
-                    modifier = Modifier.fillMaxWidth()
+                    accentColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth().clickable { onCabezasActivasClick() }
                 )
             }
             item {
                 StatCard(
                     titulo = "Toneladas activas",
-                    valor = String.format(Locale("es", "MX"), "%.1f", stats.toneladasActivas),
+                    valor = String.format(Locale.forLanguageTag("es-MX"), "%.1f", stats.toneladasActivas),
                     icon = Icons.Default.Scale,
-                    accentColor = RanchoPrimary,
-                    modifier = Modifier.fillMaxWidth()
+                    accentColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth().clickable { onToneladasActivasClick() }
                 )
             }
             item {
@@ -155,8 +176,8 @@ private fun PanelContent(
                     titulo = "Machos",
                     valor = stats.machos.toString(),
                     icon = Icons.Default.Male,
-                    accentColor = RanchoPrimary,
-                    modifier = Modifier.fillMaxWidth()
+                    accentColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth().clickable { onMachosClick() }
                 )
             }
             item {
@@ -164,8 +185,8 @@ private fun PanelContent(
                     titulo = "Hembras",
                     valor = stats.hembras.toString(),
                     icon = Icons.Default.Female,
-                    accentColor = RanchoAccent,
-                    modifier = Modifier.fillMaxWidth()
+                    accentColor = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.fillMaxWidth().clickable { onHembrasClick() }
                 )
             }
             item(span = { GridItemSpan(2) }) {
@@ -174,7 +195,7 @@ private fun PanelContent(
                     valor = currency.format(stats.efectivoGanado),
                     icon = ImageVector.vectorResource(id = R.drawable.ic_money_stack),
                     accentColor = RanchoSuccess,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().clickable { onEfectivoGanadoClick() }
                 )
             }
             item(span = { GridItemSpan(2) }) {
@@ -183,7 +204,7 @@ private fun PanelContent(
                     valor = "-" + currency.format(stats.egresosMes),
                     icon = Icons.Default.TrendingDown,
                     accentColor = RanchoError,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().clickable { onEgresosPeriodoClick() }
                 )
             }
         }
@@ -263,7 +284,13 @@ fun PanelPreview() {
             stats = dummyStats,
             alertas = listOf(dummyAnimal to dummyEstado),
             currency = NumberFormat.getCurrencyInstance(Locale("es", "MX")),
-            onOpenDrawer = {}
+            onOpenDrawer = {},
+            onCabezasActivasClick = {},
+            onToneladasActivasClick = {},
+            onMachosClick = {},
+            onHembrasClick = {},
+            onEfectivoGanadoClick = {},
+            onEgresosPeriodoClick = {}
         )
     }
 }

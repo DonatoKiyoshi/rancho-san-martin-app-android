@@ -1,20 +1,20 @@
 package com.rancho.gestion.ui.finanzas
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudDone
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,8 +23,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -37,9 +42,9 @@ import com.rancho.gestion.R
 import com.rancho.gestion.data.entities.CategoriaEgreso
 import com.rancho.gestion.data.entities.Egreso
 import com.rancho.gestion.data.repository.ResultadoOperacion
+import com.rancho.gestion.ui.components.HomeTopBar
 import com.rancho.gestion.ui.components.SimpleFormDialog
 import com.rancho.gestion.ui.components.ThousandsSeparatorVisualTransformation
-import com.rancho.gestion.ui.theme.RanchoTextSecondary
 import com.rancho.gestion.util.DateUtils
 import com.rancho.gestion.util.Periodo
 import com.rancho.gestion.util.SessionManager
@@ -60,41 +65,35 @@ private data class TotalesFinanzas(
 
 data class CategoryStyle(
     val accentColor: Color,
-    val containerColor: Color,
     val iconRes: Int
 )
 
 fun getCategoryStyle(categoria: CategoriaEgreso): CategoryStyle = when (categoria) {
     CategoriaEgreso.NOMINA -> CategoryStyle(
-        accentColor = Color(0xFF10B981), // Esmeralda / Verde
-        containerColor = Color(0xFFECFDF5),
+        accentColor = Color(0xFF10B981), // Esmeralda / Verde brillante
         iconRes = R.drawable.ic_nomina_finanzas
     )
     CategoriaEgreso.GASOLINA -> CategoryStyle(
         accentColor = Color(0xFFEA580C), // Naranja / Terracota
-        containerColor = Color(0xFFFFF7ED),
         iconRes = R.drawable.ic_gasolina_finanzas
     )
     CategoriaEgreso.ALIMENTO -> CategoryStyle(
         accentColor = Color(0xFFD97706), // Ámbar / Dorado
-        containerColor = Color(0xFFFFFBEB),
         iconRes = R.drawable.ic_alimentos_finanzas
     )
     CategoriaEgreso.FARMACOS -> CategoryStyle(
-        accentColor = Color(0xFF8B5CF6), // Púrpura / Íñdigo
-        containerColor = Color(0xFFF5F3FF),
+        accentColor = Color(0xFF8B5CF6), // Púrpura / Íñdigo brillante
         iconRes = R.drawable.ic_farmacos_finanzas
     )
     CategoriaEgreso.OTROS -> CategoryStyle(
-        accentColor = Color(0xFF64748B), // Pizarra / Azul-Gris
-        containerColor = Color(0xFFF8FAFC),
+        accentColor = Color(0xFF38BDF8), // Azul brillante
         iconRes = R.drawable.ic_otros_finanzas
     )
 }
 
 @Composable
 fun FinanzasScreen(container: AppContainer, onOpenDrawer: () -> Unit) {
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
+    val currency = remember { NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX")) }
     var mostrarDialogo by remember { mutableStateOf(false) }
     var egresoAEliminar by remember { mutableStateOf<Egreso?>(null) }
     val scope = rememberCoroutineScope()
@@ -164,6 +163,7 @@ fun FinanzasScreen(container: AppContainer, onOpenDrawer: () -> Unit) {
                     "Eliminar Egreso",
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.fillMaxWidth()
                 )
             },
@@ -171,6 +171,7 @@ fun FinanzasScreen(container: AppContainer, onOpenDrawer: () -> Unit) {
                 Text(
                     "¿Estás seguro de que deseas eliminar este egreso?",
                     textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth()
                 )
             },
@@ -196,7 +197,7 @@ fun FinanzasScreen(container: AppContainer, onOpenDrawer: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun FinanzasContent(
     totales: TotalesFinanzas,
@@ -208,159 +209,181 @@ private fun FinanzasContent(
     onRegistrarEgresoClick: () -> Unit,
     onDeleteEgreso: (Egreso) -> Unit
 ) {
+    val listState = rememberLazyListState()
+    val density = LocalDensity.current.density
+    val collapseThresholdPx = 200f * density
+
+    val collapseProgress by remember {
+        derivedStateOf {
+            if (listState.firstVisibleItemIndex > 0) {
+                1f
+            } else {
+                (listState.firstVisibleItemScrollOffset.toFloat() / collapseThresholdPx).coerceIn(0f, 1f)
+            }
+        }
+    }
+
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Finanzas",
-                        style = TextStyle(
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF0F172A)
-                        )
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onOpenDrawer) {
-                        Icon(
-                            Icons.Default.Home,
-                            contentDescription = "Menú",
-                            tint = Color(0xFF334155),
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {}) {
-                        Icon(
-                            Icons.Default.CloudDone,
-                            contentDescription = "Sincronizado",
-                            tint = Color(0xFF64748B),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-            )
-        },
+        topBar = { HomeTopBar(title = "Finanzas", onHomeClick = onOpenDrawer) },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onRegistrarEgresoClick,
                 icon = { Icon(Icons.Default.Add, contentDescription = null, tint = Color.White) },
                 text = { Text("Registrar Egreso", fontWeight = FontWeight.Bold, color = Color.White) },
-                containerColor = Color(0xFF3B82F6), // Indigo/Blue Accent
+                containerColor = MaterialTheme.colorScheme.primary,
                 shape = RoundedCornerShape(50)
             )
         }
     ) { padding ->
-        Column(
+        LazyColumn(
+            state = listState,
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(horizontal = 20.dp)
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Spacer(Modifier.height(8.dp))
+            // Sticky Header con colapso progresivo y continuo al hacer scroll
+            stickyHeader {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(vertical = 8.dp)
+                ) {
+                    // Fila 1: Total (se expande progresivamente a 100%) + Nómina (se desvanece progresivamente)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp * (1f - collapseProgress)),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FinanzasStatCard(
+                            titulo = "Total",
+                            valor = currency.format(totales.total),
+                            iconRes = R.drawable.ic_total_finanzas,
+                            isTotal = true,
+                            collapseProgress = collapseProgress,
+                            modifier = Modifier.weight(1f + collapseProgress * 8f)
+                        )
 
-            // Grid de Tarjetas de Totales (2x3) con mayor espacio negativo (16.dp)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                FinanzasStatCard(
-                    titulo = "Total",
-                    valor = currency.format(totales.total),
-                    iconRes = R.drawable.ic_total_finanzas,
-                    isTotal = true,
-                    modifier = Modifier.weight(1f)
-                )
-                FinanzasStatCard(
-                    titulo = "Nómina",
-                    valor = currency.format(totales.nomina),
-                    iconRes = R.drawable.ic_nomina_finanzas,
-                    categoryStyle = getCategoryStyle(CategoriaEgreso.NOMINA),
-                    modifier = Modifier.weight(1f)
-                )
+                        if (collapseProgress < 0.98f) {
+                            Box(
+                                modifier = Modifier
+                                    .weight((1f - collapseProgress).coerceAtLeast(0.001f))
+                                    .graphicsLayer {
+                                        alpha = (1f - collapseProgress * 1.2f).coerceIn(0f, 1f)
+                                    }
+                            ) {
+                                FinanzasStatCard(
+                                    titulo = "Nómina",
+                                    valor = currency.format(totales.nomina),
+                                    iconRes = R.drawable.ic_nomina_finanzas,
+                                    categoryStyle = getCategoryStyle(CategoriaEgreso.NOMINA)
+                                )
+                            }
+                        }
+                    }
+
+                    // Filas 2 y 3: Tarjetas de Categorías (se contraen y desvanecen progresivamente al hacer scroll)
+                    if (collapseProgress < 0.98f) {
+                        val remainingAlpha = (1f - collapseProgress * 1.2f).coerceIn(0f, 1f)
+                        val remainingHeight = (230.dp * (1f - collapseProgress)).coerceAtLeast(0.dp)
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(remainingHeight)
+                                .graphicsLayer {
+                                    alpha = remainingAlpha
+                                    scaleY = 1f - collapseProgress * 0.15f
+                                    transformOrigin = TransformOrigin(0.5f, 0f)
+                                }
+                        ) {
+                            Column {
+                                Spacer(Modifier.height(16.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    FinanzasStatCard(
+                                        titulo = "Gasolina",
+                                        valor = currency.format(totales.gasolina),
+                                        iconRes = R.drawable.ic_gasolina_finanzas,
+                                        categoryStyle = getCategoryStyle(CategoriaEgreso.GASOLINA),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    FinanzasStatCard(
+                                        titulo = "Fármacos",
+                                        valor = currency.format(totales.farmacos),
+                                        iconRes = R.drawable.ic_farmacos_finanzas,
+                                        categoryStyle = getCategoryStyle(CategoriaEgreso.FARMACOS),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                Spacer(Modifier.height(16.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    FinanzasStatCard(
+                                        titulo = "Alimento",
+                                        valor = currency.format(totales.alimento),
+                                        iconRes = R.drawable.ic_alimentos_finanzas,
+                                        categoryStyle = getCategoryStyle(CategoriaEgreso.ALIMENTO),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    FinanzasStatCard(
+                                        titulo = "Otros",
+                                        valor = currency.format(totales.otros),
+                                        iconRes = R.drawable.ic_otros_finanzas,
+                                        categoryStyle = getCategoryStyle(CategoriaEgreso.OTROS),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Text(
+                        text = "Movimientos del mes de ${DateUtils.formatMonth(fechaActual)}",
+                        style = TextStyle(
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
             }
-            Spacer(Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                FinanzasStatCard(
-                    titulo = "Gasolina",
-                    valor = currency.format(totales.gasolina),
-                    iconRes = R.drawable.ic_gasolina_finanzas,
-                    categoryStyle = getCategoryStyle(CategoriaEgreso.GASOLINA),
-                    modifier = Modifier.weight(1f)
-                )
-                FinanzasStatCard(
-                    titulo = "Fármacos",
-                    valor = currency.format(totales.farmacos),
-                    iconRes = R.drawable.ic_farmacos_finanzas,
-                    categoryStyle = getCategoryStyle(CategoriaEgreso.FARMACOS),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                FinanzasStatCard(
-                    titulo = "Alimento",
-                    valor = currency.format(totales.alimento),
-                    iconRes = R.drawable.ic_alimentos_finanzas,
-                    categoryStyle = getCategoryStyle(CategoriaEgreso.ALIMENTO),
-                    modifier = Modifier.weight(1f)
-                )
-                FinanzasStatCard(
-                    titulo = "Otros",
-                    valor = currency.format(totales.otros),
-                    iconRes = R.drawable.ic_otros_finanzas,
-                    categoryStyle = getCategoryStyle(CategoriaEgreso.OTROS),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(Modifier.height(28.dp))
-
-            Text(
-                text = "Movimientos del mes de ${DateUtils.formatMonth(fechaActual)}",
-                style = TextStyle(
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF0F172A)
-                )
-            )
-            Spacer(Modifier.height(14.dp))
 
             if (egresosRecientes.isEmpty()) {
-                Text(
-                    text = "Aún no hay egresos registrados este mes.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF64748B)
+                item {
+                    Text(
+                        text = "Aún no hay egresos registrados este mes.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            items(egresosRecientes, key = { it.idEgreso }) { egreso ->
+                val calActual = Calendar.getInstance()
+                val calEgreso = Calendar.getInstance().apply { timeInMillis = egreso.fechaEgreso }
+                val esCorteVigente = calActual.get(Calendar.MONTH) == calEgreso.get(Calendar.MONTH) &&
+                                   calActual.get(Calendar.YEAR) == calEgreso.get(Calendar.YEAR)
+
+                EgresoRow(
+                    egreso = egreso,
+                    currency = currency,
+                    canDelete = isAdmin && esCorteVigente,
+                    onDelete = { onDeleteEgreso(egreso) }
                 )
             }
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(egresosRecientes, key = { it.idEgreso }) { egreso ->
-                    val calActual = Calendar.getInstance()
-                    val calEgreso = Calendar.getInstance().apply { timeInMillis = egreso.fechaEgreso }
-                    val esCorteVigente = calActual.get(Calendar.MONTH) == calEgreso.get(Calendar.MONTH) &&
-                                       calActual.get(Calendar.YEAR) == calEgreso.get(Calendar.YEAR)
-
-                    EgresoRow(
-                        egreso = egreso,
-                        currency = currency,
-                        canDelete = isAdmin && esCorteVigente,
-                        onDelete = { onDeleteEgreso(egreso) }
-                    )
-                }
-                item { Spacer(Modifier.height(80.dp)) }
-            }
+            item { Spacer(Modifier.height(80.dp)) }
         }
     }
 }
@@ -372,19 +395,32 @@ private fun FinanzasStatCard(
     iconRes: Int,
     modifier: Modifier = Modifier,
     isTotal: Boolean = false,
+    collapseProgress: Float = 0f,
     categoryStyle: CategoryStyle? = null
 ) {
     val shape = RoundedCornerShape(22.dp)
+    val cardHeight = if (isTotal) {
+        lerp(100.dp, 78.dp, collapseProgress)
+    } else {
+        100.dp
+    }
+
+    val centeredAlpha = if (isTotal) {
+        ((collapseProgress - 0.25f) / 0.75f).coerceIn(0f, 1f)
+    } else 0f
+    val standardAlpha = if (isTotal) {
+        (1f - collapseProgress * 1.5f).coerceIn(0f, 1f)
+    } else 1f
 
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = shape,
         colors = CardDefaults.cardColors(
-            containerColor = if (isTotal) Color.Transparent else Color.White
+            containerColor = if (isTotal) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant
         ),
-        border = if (isTotal) null else BorderStroke(1.dp, Color(0xFFF1F5F9)),
+        border = if (isTotal) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isTotal) 6.dp else 2.dp
+            defaultElevation = if (isTotal) 6.dp else 1.5.dp
         )
     ) {
         Box(
@@ -394,42 +430,121 @@ private fun FinanzasStatCard(
                     if (isTotal) {
                         Modifier.background(
                             brush = Brush.linearGradient(
-                                colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1))
+                                colors = listOf(Color(0xFF0284C7), Color(0xFF2563EB))
                             )
                         )
                     } else Modifier
                 )
-                .heightIn(min = 100.dp)
-                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .height(cardHeight)
+                .padding(horizontal = 16.dp, vertical = 10.dp)
         ) {
-            Column(modifier = Modifier.align(Alignment.TopStart)) {
-                Text(
-                    text = valor,
-                    style = TextStyle(
-                        fontSize = if (isTotal) 22.sp else 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isTotal) Color.White else Color(0xFF0F172A)
+            if (isTotal) {
+                // Layout centrado para Total (se desvanece entrando conforme collapseProgress -> 1)
+                if (centeredAlpha > 0f) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = centeredAlpha },
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = ImageVector.vectorResource(id = iconRes),
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = valor,
+                                style = TextStyle(
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "Total de Egresos",
+                                style = TextStyle(
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White.copy(alpha = 0.85f)
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Layout estándar para Total (se desvanece saliendo conforme collapseProgress -> 1)
+                if (standardAlpha > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = standardAlpha }
+                    ) {
+                        Column(modifier = Modifier.align(Alignment.TopStart)) {
+                            Text(
+                                text = valor,
+                                style = TextStyle(
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = titulo,
+                                style = TextStyle(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White.copy(alpha = 0.85f)
+                                )
+                            )
+                        }
+
+                        Icon(
+                            imageVector = ImageVector.vectorResource(id = iconRes),
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier
+                                .size(32.dp)
+                                .align(Alignment.BottomEnd)
+                        )
+                    }
+                }
+            } else {
+                // Layout estándar para tarjeta de categoría
+                Column(modifier = Modifier.align(Alignment.TopStart)) {
+                    Text(
+                        text = valor,
+                        style = TextStyle(
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     )
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = titulo,
-                    style = TextStyle(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (isTotal) Color.White.copy(alpha = 0.85f) else Color(0xFF64748B)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = titulo,
+                        style = TextStyle(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
+                }
+
+                Icon(
+                    imageVector = ImageVector.vectorResource(id = iconRes),
+                    contentDescription = null,
+                    tint = categoryStyle?.accentColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .align(Alignment.BottomEnd)
                 )
             }
-
-            Icon(
-                imageVector = ImageVector.vectorResource(id = iconRes),
-                contentDescription = null,
-                tint = if (isTotal) Color.White.copy(alpha = 0.85f) else (categoryStyle?.accentColor ?: Color(0xFF64748B)),
-                modifier = Modifier
-                    .size(32.dp)
-                    .align(Alignment.BottomEnd)
-            )
         }
     }
 }
@@ -446,9 +561,9 @@ private fun EgresoRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
         Row(
             modifier = Modifier
@@ -461,12 +576,11 @@ private fun EgresoRow(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Contenedor circular suave translúcido con icono minimalista
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(style.containerColor),
+                        .background(style.accentColor.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -483,7 +597,7 @@ private fun EgresoRow(
                     Text(
                         text = categoriaLabel(egreso.categoria),
                         fontWeight = FontWeight.Bold,
-                        style = TextStyle(fontSize = 16.sp, color = Color(0xFF0F172A))
+                        style = TextStyle(fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
                     )
                     Spacer(Modifier.height(2.dp))
                     val detailText = if (egreso.descripcion.isNotBlank()) {
@@ -493,7 +607,7 @@ private fun EgresoRow(
                     }
                     Text(
                         text = detailText,
-                        style = TextStyle(fontSize = 13.sp, color = Color(0xFF64748B))
+                        style = TextStyle(fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     )
                 }
             }
@@ -513,7 +627,7 @@ private fun EgresoRow(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFFEE2E2))
+                            .background(Color(0xFFFEE2E2).copy(alpha = 0.2f))
                             .clickable(onClick = onDelete),
                         contentAlignment = Alignment.Center
                     ) {

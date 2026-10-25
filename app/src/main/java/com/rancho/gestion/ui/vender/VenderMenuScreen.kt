@@ -3,6 +3,7 @@ package com.rancho.gestion.ui.vender
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -12,13 +13,10 @@ import androidx.compose.ui.unit.dp
 import com.rancho.gestion.R
 import com.rancho.gestion.ui.components.BackTopBar
 import com.rancho.gestion.ui.components.MenuOptionCard
-import com.rancho.gestion.ui.theme.RanchoAccent
-import com.rancho.gestion.ui.theme.RanchoError
-import com.rancho.gestion.ui.theme.RanchoPrimary
 import com.rancho.gestion.ui.theme.RanchoTheme
 
 /**
- * Menú "Vender" — tres salidas de ganado según el boceto:
+ * Menú "Vender" — tres salidas de ganado:
  * Venta Individual, Jaula (venta por lote) y Registrar Muerte.
  */
 @Composable
@@ -39,22 +37,21 @@ fun VenderMenuScreen(
             MenuOptionCard(
                 label = "Venta Individual",
                 icon = Icons.Default.Sell,
-                accentColor = RanchoPrimary,
+                accentColor = MaterialTheme.colorScheme.primary,
                 subtitle = "Vender un solo animal por su arete",
                 onClick = onVentaIndividual
             )
             MenuOptionCard(
                 label = "Jaula",
                 icon = ImageVector.vectorResource(id = R.drawable.jaula_icon),
-                accentColor = RanchoAccent,
-                tint = androidx.compose.ui.graphics.Color.Unspecified,
+                accentColor = MaterialTheme.colorScheme.secondary,
                 subtitle = "Vender todos los animales de un lote",
                 onClick = onJaula
             )
             MenuOptionCard(
                 label = "Registrar Muerte",
                 icon = Icons.Default.HeartBroken,
-                accentColor = RanchoError,
+                accentColor = MaterialTheme.colorScheme.error,
                 subtitle = "Da de baja un animal y calcula la merma",
                 onClick = onRegistrarMuerte
             )

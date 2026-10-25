@@ -67,6 +67,7 @@ import com.rancho.gestion.ui.theme.RanchoTextSecondary
 import com.rancho.gestion.ui.theme.SanMartinOrange
 import com.rancho.gestion.util.DateUtils
 import com.rancho.gestion.util.ExcelGanadoGenerator
+import com.rancho.gestion.util.FiltroFechas
 import com.rancho.gestion.util.PdfGanadoGenerator
 import com.rancho.gestion.util.Periodo
 import com.rancho.gestion.util.RangoStat
@@ -116,34 +117,36 @@ fun periodoLabel(p: Periodo): String = when (p) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ReportesGanadoScreen(container: AppContainer, onBack: () -> Unit) {
-    // 1. Filtro por Fecha (Misma lógica que ReportesFinanzas)
-    var filtroFechas by remember { mutableStateOf<FiltroFechas>(FiltroFechas.Ultimo(Periodo.MENSUAL)) }
+fun ReportesGanadoScreen(
+    container: AppContainer,
+    onBack: () -> Unit,
+    initialPeriodo: String = "MENSUAL",
+    initialEstado: String = "TODOS"
+) {
+    val defaultFiltroFechas = remember(initialPeriodo) {
+        if (initialPeriodo.uppercase() == "ANUAL") FiltroFechas.Ultimo(Periodo.ANUAL)
+        else FiltroFechas.Ultimo(Periodo.MENSUAL)
+    }
+    val defaultEstados = remember(initialEstado) {
+        if (initialEstado.uppercase() == "ACTIVO") setOf(EstadoInventario.ACTIVO)
+        else emptySet()
+    }
 
-    // 2. Filtro por Tipo de Arete ("AMBOS", "SADER", "OTRO")
+    var filtroFechas by remember(initialPeriodo) { mutableStateOf<FiltroFechas>(defaultFiltroFechas) }
     var tipoAreteFiltro by remember { mutableStateOf("AMBOS") }
-
-    // 3. Filtro por Color (Lista de colores elegidos)
     var coloresFiltro by remember { mutableStateOf<Set<String>>(emptySet()) }
-
-    // 4. Filtro por Estado (Conjunto de estados elegidos: ACTIVO, VENDIDO, MUERTO)
-    var estadosFiltro by remember { mutableStateOf<Set<EstadoInventario>>(emptySet()) }
-
-    // 5. Filtro por Peso (Conjunto de IDs de RangoPeso seleccionados)
+    var estadosFiltro by remember(initialEstado) { mutableStateOf<Set<EstadoInventario>>(defaultEstados) }
     var rangosPesoFiltroIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
 
-    // Control de visibilidad de modales
     var mostrarModalFiltros by remember { mutableStateOf(false) }
     var exportDialogVisible by remember { mutableStateOf(false) }
 
-    // Control de vista previa de fotografía
     var fotoSeleccionadaArete by remember { mutableStateOf<String?>(null) }
     var fotoSeleccionadaUrl by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // SAF Launcher para guardar archivos en el almacenamiento del dispositivo
     var pendingExportFile by remember { mutableStateOf<Pair<File, String>?>(null) }
     val safLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("*/*")
@@ -174,7 +177,6 @@ fun ReportesGanadoScreen(container: AppContainer, onBack: () -> Unit) {
     val ventas by container.ventaRepository.getVentas().collectAsState(initial = emptyList())
     val detallesVenta by container.ventaRepository.getTodosLosDetalles().collectAsState(initial = emptyList())
 
-    // Rango de fechas calculado según filtroFechas
     val (desde, hasta) = remember(filtroFechas) {
         when (val f = filtroFechas) {
             is FiltroFechas.Ultimo -> DateUtils.rangoPara(f.periodo)
@@ -189,7 +191,6 @@ fun ReportesGanadoScreen(container: AppContainer, onBack: () -> Unit) {
     val detallesMap = remember(detallesVenta) { detallesVenta.associateBy { it.numeroArete } }
     val todosLosAnimales = remember(activos, archivados) { activos + archivados }
 
-    // Evaluar si hay filtros activos
     val hayFiltrosActivos = remember(filtroFechas, tipoAreteFiltro, coloresFiltro, estadosFiltro, rangosPesoFiltroIds) {
         filtroFechas !is FiltroFechas.Ultimo ||
         (filtroFechas as FiltroFechas.Ultimo).periodo != Periodo.MENSUAL ||
@@ -199,7 +200,6 @@ fun ReportesGanadoScreen(container: AppContainer, onBack: () -> Unit) {
         rangosPesoFiltroIds.isNotEmpty()
     }
 
-    // Filtrado de animales aplicando los 5 criterios
     val animalesFiltrados = remember(
         todosLosAnimales,
         desde,
@@ -240,7 +240,6 @@ fun ReportesGanadoScreen(container: AppContainer, onBack: () -> Unit) {
         }
     }
 
-    // Cálculo estadístico derivado
     val stats = remember(animalesFiltrados, rangos) {
         ReporteGanadoDataCalculator.calcular(animalesFiltrados, rangos)
     }
@@ -328,7 +327,6 @@ fun ReportesGanadoScreen(container: AppContainer, onBack: () -> Unit) {
         onBack = onBack
     )
 
-    // Modal de Exportación (PDF y Excel)
     if (exportDialogVisible) {
         val sdf = SimpleDateFormat("ddMMM-yyyy", Locale.forLanguageTag("es-MX"))
         val filenameBase = "RanchoSanMartin_ReporteGanado_${sdf.format(Date(desde))}-${sdf.format(Date(hasta))}".replace(" ", "")
@@ -431,7 +429,6 @@ fun ReportesGanadoScreen(container: AppContainer, onBack: () -> Unit) {
         )
     }
 
-    // Modal de Filtros Avanzados
     if (mostrarModalFiltros) {
         val currCal = Calendar.getInstance()
         val currentYear = currCal.get(Calendar.YEAR)
@@ -457,7 +454,6 @@ fun ReportesGanadoScreen(container: AppContainer, onBack: () -> Unit) {
         )
     }
 
-    // Modal de vista previa de fotografía
     fotoSeleccionadaArete?.let { arete ->
         val url = fotoSeleccionadaUrl
         if (!url.isNullOrBlank()) {
@@ -477,7 +473,7 @@ fun ReportesGanadoScreen(container: AppContainer, onBack: () -> Unit) {
                 },
                 text = {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Número de Arete: $arete", fontWeight = FontWeight.SemiBold, color = RanchoPrimary)
+                        Text("Número de Arete: $arete", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(12.dp))
                         Card(
                             shape = RoundedCornerShape(12.dp),
@@ -550,14 +546,14 @@ private fun ReportesGanadoContent(
                 onBack = onBack,
                 actions = {
                     IconButton(onClick = onOpenExport) {
-                        Icon(Icons.Default.Share, contentDescription = "Exportar Reporte")
+                        Icon(Icons.Default.Share, contentDescription = "Exportar Reporte", tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = onOpenFiltros) {
                         Box(contentAlignment = Alignment.TopEnd) {
                             Icon(
                                 imageVector = Icons.Default.FilterList,
                                 contentDescription = "Filtros",
-                                tint = if (hayFiltrosActivos) SanMartinOrange else MaterialTheme.colorScheme.onSurface
+                                tint = if (hayFiltrosActivos) SanMartinOrange else MaterialTheme.colorScheme.onBackground
                             )
                             if (hayFiltrosActivos) {
                                 Box(
@@ -576,16 +572,15 @@ private fun ReportesGanadoContent(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(Color(0xFFF5F7F9))
+                .background(MaterialTheme.colorScheme.background)
         ) {
-            // BARRA DE FILTROS ACTIVOS
             if (hayFiltrosActivos) {
                 Spacer(Modifier.height(8.dp))
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    color = Color(0xFFE2E8ED),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
@@ -596,7 +591,7 @@ private fun ReportesGanadoContent(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.FilterAlt, contentDescription = null, tint = SanMartinOrange, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Filtros activos aplicados", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF202A32))
+                            Text("Filtros activos aplicados", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                         }
                         TextButton(
                             onClick = onResetFiltros,
@@ -610,38 +605,35 @@ private fun ReportesGanadoContent(
 
             Spacer(Modifier.height(8.dp))
 
-            // TABROW DE PESTAÑAS (TABLA DE REGISTROS vs GRÁFICOS Y RESUMEN)
             TabRow(
                 selectedTabIndex = pagerState.currentPage,
                 containerColor = Color.Transparent,
-                contentColor = RanchoPrimary,
-                divider = { HorizontalDivider(color = Color(0xFFE2E8ED)) }
+                contentColor = MaterialTheme.colorScheme.primary,
+                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)) }
             ) {
                 Tab(
                     selected = pagerState.currentPage == 0,
                     onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
                     text = { Text("Tabla de Registros", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                    selectedContentColor = RanchoPrimary,
-                    unselectedContentColor = RanchoTextSecondary
+                    selectedContentColor = MaterialTheme.colorScheme.primary,
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Tab(
                     selected = pagerState.currentPage == 1,
                     onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
                     text = { Text("Gráficos y Resumen", fontWeight = FontWeight.Bold, fontSize = 14.sp) },
-                    selectedContentColor = RanchoPrimary,
-                    unselectedContentColor = RanchoTextSecondary
+                    selectedContentColor = MaterialTheme.colorScheme.primary,
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
             Spacer(Modifier.height(8.dp))
 
-            // HORIZONTAL PAGER PARA LAS DOS PESTAÑAS
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.weight(1f)
             ) { page ->
                 if (stats.totalAnimales == 0) {
-                    // ESTADO VACÍO CUANDO NO HAY RESULTADOS
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -650,7 +642,7 @@ private fun ReportesGanadoContent(
                     ) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                             shape = RoundedCornerShape(16.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
                         ) {
@@ -660,15 +652,15 @@ private fun ReportesGanadoContent(
                                     .padding(32.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Icon(ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder), contentDescription = null, tint = Color(0xFF5D8795), modifier = Modifier.size(48.dp))
+                                Icon(ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(48.dp))
                                 Spacer(Modifier.height(12.dp))
-                                Text("No hay registros que coincidan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF202A32))
+                                Text("No hay registros que coincidan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                                 Spacer(Modifier.height(4.dp))
                                 Text(
                                     "Intenta cambiando o restableciendo los filtros seleccionados para ver resultados.",
                                     style = MaterialTheme.typography.bodySmall,
                                     textAlign = TextAlign.Center,
-                                    color = Color(0xFF697782)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(Modifier.height(16.dp))
                                 Button(
@@ -681,7 +673,6 @@ private fun ReportesGanadoContent(
                         }
                     }
                 } else if (page == 0) {
-                    // PESTAÑA 1: TABLA DE REGISTROS (MÁXIMO ESPACIO PANTALLA COMPLETA)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -698,7 +689,6 @@ private fun ReportesGanadoContent(
                         )
                     }
                 } else {
-                    // PESTAÑA 2: GRÁFICOS Y RESUMEN DASHBOARD CON ANIMACIONES SUAVES DE ENTRADA
                     val isTabActive = pagerState.currentPage == 1
 
                     Column(
@@ -708,7 +698,6 @@ private fun ReportesGanadoContent(
                             .padding(bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // ENCABEZADO RESUMEN DEL INVENTARIO
                         val headerAlpha by animateFloatAsState(
                             targetValue = if (isTabActive) 1f else 0f,
                             animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
@@ -733,22 +722,18 @@ private fun ReportesGanadoContent(
                                 text = "Resumen del inventario",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF202A32)
+                                color = MaterialTheme.colorScheme.onBackground
                             )
                             Text(
                                 text = "Visualiza el estado, peso, distribución y composición analítica del hato.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFF697782)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
-                        // 1. KPIS PRINCIPALES
                         IndicadoresPrincipalesGrid(stats = stats, isTabActive = isTabActive)
-
-                        // 2. GRÁFICO 1: DISTRIBUCIÓN RANGO PESO
                         GraficoDistribucionRangoPeso(stats = stats, isTabActive = isTabActive)
 
-                        // 3. GRÁFICOS 2 Y 3: ESTADO Y SEXO
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -763,7 +748,6 @@ private fun ReportesGanadoContent(
                             }
                         }
 
-                        // 4. RESUMEN TIPO ARETE
                         ResumenTipoAreteSection(stats = stats, isTabActive = isTabActive)
                     }
                 }
@@ -789,12 +773,12 @@ private fun ExportarGanadoDialog(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxWidth()
             )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // Opción PDF
                 ElevatedCard(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
@@ -810,7 +794,7 @@ private fun ExportarGanadoDialog(
                             )
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("Documento PDF", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                Text("Documento PDF", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                                 Text(
                                     "$totalRegistros registros · $totalPaginasPdf ${if (totalPaginasPdf == 1) "página" else "páginas"}",
                                     style = MaterialTheme.typography.bodyMedium,
@@ -846,7 +830,6 @@ private fun ExportarGanadoDialog(
                     }
                 }
 
-                // Opción Excel
                 ElevatedCard(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
@@ -862,7 +845,7 @@ private fun ExportarGanadoDialog(
                             )
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("Libro de Excel (.xlsx)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
+                                Text("Libro de Excel (.xlsx)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                                 Text(
                                     "4 hojas (Resumen, Registros, Análisis, Catálogos)",
                                     style = MaterialTheme.typography.bodyMedium,
@@ -921,14 +904,13 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats, isTabActive: B
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // 4 TARJETAS PRINCIPALES DE PRIMERA JERARQUÍA
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             KpiCard(
                 title = "Total Animales",
                 value = "${stats.totalAnimales}",
                 subtitle = "cabezas filtradas",
                 icon = ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder),
-                accentColor = Color(0xFF31566B),
+                accentColor = MaterialTheme.colorScheme.primary,
                 index = 0,
                 isTabActive = isTabActive,
                 modifier = Modifier.weight(1f)
@@ -938,7 +920,7 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats, isTabActive: B
                 value = "${String.format(locale, "%,.0f", stats.pesoTotal)} kg",
                 subtitle = "acumulado entrada",
                 icon = Icons.Default.Scale,
-                accentColor = Color(0xFF5D8795),
+                accentColor = MaterialTheme.colorScheme.primary,
                 index = 1,
                 isTabActive = isTabActive,
                 modifier = Modifier.weight(1f)
@@ -951,7 +933,7 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats, isTabActive: B
                 value = "${String.format(locale, "%,.1f", stats.pesoPromedio)} kg",
                 subtitle = if (stats.sinPesoRegistradoCount > 0) "promedio (${stats.sinPesoRegistradoCount} sin peso)" else "promedio / cabeza",
                 icon = Icons.Default.Analytics,
-                accentColor = Color(0xFF6F9E83),
+                accentColor = MaterialTheme.colorScheme.primary,
                 index = 2,
                 isTabActive = isTabActive,
                 modifier = Modifier.weight(1f)
@@ -961,21 +943,20 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats, isTabActive: B
                 value = "${stats.totalActivos}",
                 subtitle = "${String.format(locale, "%.1f", stats.pctActivos)}% del total",
                 icon = Icons.Default.CheckCircle,
-                accentColor = Color(0xFF3D7A54),
+                accentColor = Color(0xFF34D399),
                 index = 3,
                 isTabActive = isTabActive,
                 modifier = Modifier.weight(1f)
             )
         }
 
-        // TARJETAS DE SEGUNDA JERARQUÍA (VENDIDOS Y MUERTES)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             KpiCard(
                 title = "Vendidos",
                 value = "${stats.totalVendidos}",
                 subtitle = "${String.format(locale, "%.1f", stats.pctVendidos)}% del total",
                 icon = Icons.Default.AttachMoney,
-                accentColor = Color(0xFF31566B),
+                accentColor = MaterialTheme.colorScheme.primary,
                 isSecondary = true,
                 index = 4,
                 isTabActive = isTabActive,
@@ -986,7 +967,7 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats, isTabActive: B
                 value = "${stats.totalMuertos}",
                 subtitle = "${String.format(locale, "%.1f", stats.pctMuertos)}% del total",
                 icon = Icons.Default.Warning,
-                accentColor = Color(0xFFB3261E),
+                accentColor = Color(0xFFF87171),
                 isSecondary = true,
                 index = 5,
                 isTabActive = isTabActive,
@@ -1025,7 +1006,7 @@ private fun KpiCard(
             translationY = translationYAnim * density
         },
         colors = CardDefaults.cardColors(
-            containerColor = if (isSecondary) Color(0xFFF0F4F8) else Color.White
+            containerColor = if (isSecondary) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant
         ),
         shape = RoundedCornerShape(14.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSecondary) 0.5.dp else 1.5.dp)
@@ -1040,12 +1021,12 @@ private fun KpiCard(
                     text = title,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF697782)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Box(
                     modifier = Modifier
                         .size(26.dp)
-                        .background(accentColor.copy(alpha = 0.12f), CircleShape),
+                        .background(accentColor.copy(alpha = 0.15f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(15.dp))
@@ -1056,13 +1037,13 @@ private fun KpiCard(
                 text = value,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF202A32)
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 text = subtitle,
                 fontSize = 10.sp,
-                color = Color(0xFF697782)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -1092,25 +1073,25 @@ private fun GraficoDistribucionRangoPeso(stats: ReporteGanadoStats, isTabActive:
                 alpha = cardAlpha
                 translationY = cardTranslationY * density
             },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.BarChart, contentDescription = null, tint = Color(0xFF31566B), modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.BarChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = "Distribución por Rango de Peso",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF202A32)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             Spacer(Modifier.height(14.dp))
 
             if (stats.distribucionRangos.isEmpty()) {
-                Text("No hay rangos de peso configurados", fontSize = 12.sp, color = Color(0xFF697782))
+                Text("No hay rangos de peso configurados", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 stats.distribucionRangos.forEachIndexed { idx, item ->
                     key(item.idRangoPeso ?: item.nombreRango) {
@@ -1158,13 +1139,13 @@ private fun RangoBarItem(item: RangoStat, index: Int = 0, isTabActive: Boolean =
                 text = item.nombreRango,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = if (item.idRangoPeso == null) Color(0xFFB3261E) else Color(0xFF202A32)
+                color = if (item.idRangoPeso == null) Color(0xFFF87171) else MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "${item.cantidad} cab. (${String.format(locale, "%.1f", item.porcentaje)}%)",
+                text = "${item.cantidad} cabezas (${String.format(locale, "%.1f", item.porcentaje)}%)",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF31566B)
+                color = MaterialTheme.colorScheme.primary
             )
         }
         Spacer(Modifier.height(4.dp))
@@ -1173,7 +1154,7 @@ private fun RangoBarItem(item: RangoStat, index: Int = 0, isTabActive: Boolean =
                 .fillMaxWidth()
                 .height(12.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFE2E8ED))
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
         ) {
             Box(
                 modifier = Modifier
@@ -1185,7 +1166,7 @@ private fun RangoBarItem(item: RangoStat, index: Int = 0, isTabActive: Boolean =
                             if (item.idRangoPeso == null)
                                 listOf(Color(0xFFE53935), Color(0xFFEF5350))
                             else
-                                listOf(Color(0xFF31566B), Color(0xFF5D8795))
+                                listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
                         )
                     )
             )
@@ -1234,7 +1215,7 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats, isTabActiv
                 alpha = cardAlpha
                 translationY = cardTranslationY * density
             },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
@@ -1243,9 +1224,9 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats, isTabActiv
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.PieChart, contentDescription = null, tint = Color(0xFF31566B), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.PieChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Estado", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF202A32))
+                Text("Estado", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
             Spacer(Modifier.height(12.dp))
 
@@ -1286,8 +1267,8 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats, isTabActiv
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.graphicsLayer { alpha = centerAlpha }
                 ) {
-                    Text(text = "${stats.totalAnimales}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color(0xFF202A32))
-                    Text(text = "Total", fontSize = 9.sp, color = Color(0xFF697782))
+                    Text(text = "${stats.totalAnimales}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = "Total", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -1304,9 +1285,9 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats, isTabActiv
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(modifier = Modifier.size(8.dp).background(item.color, CircleShape))
                             Spacer(Modifier.width(6.dp))
-                            Text(item.label, fontSize = 10.sp, color = Color(0xFF202A32))
+                            Text(item.label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
-                        Text("${item.cantidad} (${String.format(locale, "%.0f", item.porcentaje)}%)", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("${item.cantidad} (${String.format(locale, "%.0f", item.porcentaje)}%)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
@@ -1337,7 +1318,7 @@ private fun GraficoDistribucionSexoBars(stats: ReporteGanadoStats, isTabActive: 
                 alpha = cardAlpha
                 translationY = cardTranslationY * density
             },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
@@ -1346,9 +1327,9 @@ private fun GraficoDistribucionSexoBars(stats: ReporteGanadoStats, isTabActive: 
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.BarChart, contentDescription = null, tint = Color(0xFF31566B), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.BarChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Sexo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = Color(0xFF202A32))
+                Text("Sexo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
             Spacer(Modifier.height(12.dp))
 
@@ -1395,7 +1376,7 @@ private fun SexoBarItem(item: SexoStat, index: Int = 0, isTabActive: Boolean = t
             text = "${item.cantidad}",
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFF202A32),
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.graphicsLayer { alpha = textAlpha }
         )
         Spacer(Modifier.height(4.dp))
@@ -1418,7 +1399,7 @@ private fun SexoBarItem(item: SexoStat, index: Int = 0, isTabActive: Boolean = t
                 modifier = Modifier.size(12.dp)
             )
             Spacer(Modifier.width(2.dp))
-            Text(item.label, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+            Text(item.label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -1447,7 +1428,7 @@ private fun ResumenTipoAreteSection(stats: ReporteGanadoStats, isTabActive: Bool
                 alpha = cardAlpha
                 translationY = cardTranslationY * density
             },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
@@ -1456,7 +1437,7 @@ private fun ResumenTipoAreteSection(stats: ReporteGanadoStats, isTabActive: Bool
                 text = "Resumen por Tipo de Arete",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF202A32)
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(12.dp))
 
@@ -1512,7 +1493,7 @@ private fun TipoAreteBarItem(
             alpha = itemAlpha
             translationY = itemTranslationY * density
         },
-        color = Color(0xFFF5F7F9),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -1520,22 +1501,22 @@ private fun TipoAreteBarItem(
                 item.label,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF5D8795),
+                color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.graphicsLayer { alpha = textAlpha }
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "${item.cantidad} cab.",
+                "${item.cantidad} cabezas",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color(0xFF202A32),
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.graphicsLayer { alpha = textAlpha }
             )
             Spacer(Modifier.height(2.dp))
             Text(
                 "${String.format(locale, "%.1f", item.porcentaje)}% del total",
                 fontSize = 10.sp,
-                color = Color(0xFF697782),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.graphicsLayer { alpha = textAlpha }
             )
             Spacer(Modifier.height(6.dp))
@@ -1544,14 +1525,14 @@ private fun TipoAreteBarItem(
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFE2E8ED))
+                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .fillMaxWidth(fraction = barProgress.coerceIn(0f, 1f))
                         .clip(CircleShape)
-                        .background(Color(0xFF31566B))
+                        .background(MaterialTheme.colorScheme.primary)
                 )
             }
         }
@@ -1653,9 +1634,9 @@ private fun GanadoFilterDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.FilterAlt, null, tint = RanchoPrimary)
+                Icon(Icons.Default.FilterAlt, null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(8.dp))
-                Text("Filtros de Ganado", fontWeight = FontWeight.Bold)
+                Text("Filtros de Ganado", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
         },
         text = {
@@ -1664,19 +1645,19 @@ private fun GanadoFilterDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState())
             ) {
                 // 1. FILTRO POR FECHA
-                Text("1. Rango de Fechas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RanchoPrimary)
+                Text("1. Rango de Fechas", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected = tipoConsulta == "Ultimo", onClick = { tipoConsulta = "Ultimo" })
-                    Text("Último", modifier = Modifier.clickable { tipoConsulta = "Ultimo" })
+                    Text("Último", modifier = Modifier.clickable { tipoConsulta = "Ultimo" }, color = MaterialTheme.colorScheme.onSurface)
                     Spacer(Modifier.width(16.dp))
                     RadioButton(selected = tipoConsulta == "Especifico", onClick = { tipoConsulta = "Especifico" })
-                    Text("Específico", modifier = Modifier.clickable { tipoConsulta = "Especifico" })
+                    Text("Específico", modifier = Modifier.clickable { tipoConsulta = "Especifico" }, color = MaterialTheme.colorScheme.onSurface)
                 }
 
                 if (tipoConsulta == "Ultimo") {
                     Column {
-                        Text("Periodo", style = MaterialTheme.typography.labelMedium, color = RanchoTextSecondary)
+                        Text("Periodo", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(4.dp))
                         Row(
                             modifier = Modifier
@@ -1695,22 +1676,22 @@ private fun GanadoFilterDialog(
                     }
                 } else {
                     Column {
-                        Text("Consultar por", style = MaterialTheme.typography.labelMedium, color = RanchoTextSecondary)
+                        Text("Consultar por", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = tipoEspecifico == "Dia", onClick = { tipoEspecifico = "Dia" })
-                            Text("Día específico", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Dia" })
+                            Text("Día específico", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Dia" }, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = tipoEspecifico == "Semana", onClick = { tipoEspecifico = "Semana" })
-                            Text("Semana específica", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Semana" })
+                            Text("Semana específica", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Semana" }, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = tipoEspecifico == "Mes", onClick = { tipoEspecifico = "Mes" })
-                            Text("Mes específico", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Mes" })
+                            Text("Mes específico", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Mes" }, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = tipoEspecifico == "Anio", onClick = { tipoEspecifico = "Anio" })
-                            Text("Año completo", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Anio" })
+                            Text("Año completo", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Anio" }, color = MaterialTheme.colorScheme.onSurface)
                         }
 
                         Spacer(Modifier.height(8.dp))
@@ -1811,7 +1792,7 @@ private fun GanadoFilterDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 // 2. FILTRO POR TIPO DE ARETE
-                Text("2. Tipo de Arete", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RanchoPrimary)
+                Text("2. Tipo de Arete", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     FilterChip(
                         selected = tipoArete == "AMBOS",
@@ -1847,7 +1828,7 @@ private fun GanadoFilterDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 // 3. FILTRO POR COLOR
-                Text("3. Color del Animal", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RanchoPrimary)
+                Text("3. Color del Animal", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 FilterChip(
                     selected = colores.isEmpty(),
                     onClick = { colores = emptySet() },
@@ -1881,7 +1862,7 @@ private fun GanadoFilterDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 // 4. FILTRO POR ESTADO DE INVENTARIO
-                Text("4. Estado del Inventario", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RanchoPrimary)
+                Text("4. Estado del Inventario", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 FilterChip(
                     selected = estados.isEmpty(),
                     onClick = { estados = emptySet() },
@@ -1912,7 +1893,7 @@ private fun GanadoFilterDialog(
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 // 5. FILTRO POR RANGOS DE PESO
-                Text("5. Rango de Peso", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RanchoPrimary)
+                Text("5. Rango de Peso", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 FilterChip(
                     selected = rangosPesoIds.isEmpty(),
                     onClick = { rangosPesoIds = emptySet() },
@@ -1985,7 +1966,7 @@ private fun GanadoFilterDialog(
 }
 
 // ----------------------------------------------------------------------------------
-// TABLA DETALLADA DE ANIMALES
+// TABLA DETALLADA DE ANIMALES DE ALTO CONTRASTE
 // ----------------------------------------------------------------------------------
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -2019,12 +2000,12 @@ private fun TablaGanadoReporte(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .border(1.dp, Color(0xFFCBD5E1))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         stickyHeader {
             Surface(
                 shadowElevation = 6.dp,
-                color = Color(0xFF0F172A)
+                color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Row(
                     modifier = Modifier
@@ -2076,7 +2057,7 @@ private fun TablaGanadoReporte(
             }
         } else {
             itemsIndexed(tablaRows) { index, row ->
-                val rowBg = if (index % 2 == 0) Color.White else Color(0xFFF8FAFC)
+                val rowBg = if (index % 2 == 0) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
 
                 Row(
                     modifier = Modifier
@@ -2114,12 +2095,12 @@ private fun TablaGanadoReporte(
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFFE2E8F0), thickness = 0.8.dp)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), thickness = 0.8.dp)
             }
 
             item {
                 Surface(
-                    color = Color(0xFFE2E8F0),
+                    color = MaterialTheme.colorScheme.primaryContainer,
                     shadowElevation = 8.dp
                 ) {
                     Row(
@@ -2181,14 +2162,14 @@ private fun FrozenHeaderCell(text: String, width: Dp) {
         modifier = Modifier
             .width(width)
             .fillMaxHeight()
-            .background(Color(0xFF0F172A))
+            .background(MaterialTheme.colorScheme.primaryContainer)
             .padding(horizontal = 6.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Text(
             text = text,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            fontWeight = FontWeight.ExtraBold,
             fontSize = 11.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -2207,8 +2188,8 @@ private fun HeaderCell(text: String, width: Dp) {
     ) {
         Text(
             text = text,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            fontWeight = FontWeight.ExtraBold,
             fontSize = 11.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -2228,7 +2209,7 @@ private fun FrozenDataCell(text: String, width: Dp, bg: Color, isBold: Boolean =
     ) {
         Text(
             text = text,
-            color = Color(0xFF0F172A),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal,
             fontSize = 11.sp,
             maxLines = 1,
@@ -2248,7 +2229,7 @@ private fun DataCell(text: String, width: Dp, isMuted: Boolean = false) {
     ) {
         Text(
             text = text,
-            color = if (isMuted) Color(0xFF94A3B8) else Color(0xFF1E293B),
+            color = if (isMuted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
             fontWeight = if (isMuted) FontWeight.Normal else FontWeight.Medium,
             fontSize = 11.sp,
             maxLines = 1,
@@ -2301,11 +2282,11 @@ private fun FotoBotonCell(width: Dp, hasFoto: Boolean, onClick: () -> Unit) {
             modifier = Modifier.height(28.dp),
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
             colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = if (hasFoto) SanMartinOrange else Color(0xFF64748B)
+                contentColor = if (hasFoto) SanMartinOrange else MaterialTheme.colorScheme.onSurfaceVariant
             ),
             border = androidx.compose.foundation.BorderStroke(
                 1.dp,
-                if (hasFoto) SanMartinOrange else Color(0xFFCBD5E1)
+                if (hasFoto) SanMartinOrange else MaterialTheme.colorScheme.outline
             )
         ) {
             Icon(
@@ -2329,13 +2310,13 @@ private fun FrozenTotalCell(text: String, width: Dp) {
         modifier = Modifier
             .width(width)
             .fillMaxHeight()
-            .background(Color(0xFFCBD5E1))
+            .background(MaterialTheme.colorScheme.primaryContainer)
             .padding(horizontal = 8.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Text(
             text = text,
-            color = Color(0xFF0F172A),
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
             fontWeight = FontWeight.ExtraBold,
             fontSize = 12.sp
         )
@@ -2353,7 +2334,7 @@ private fun TotalCell(text: String, width: Dp) {
     ) {
         Text(
             text = text,
-            color = Color(0xFF0F172A),
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
             fontWeight = FontWeight.Bold,
             fontSize = 11.sp,
             maxLines = 1,

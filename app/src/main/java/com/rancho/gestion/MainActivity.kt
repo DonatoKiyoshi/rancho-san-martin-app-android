@@ -8,6 +8,8 @@ import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.rancho.gestion.ui.navigation.RanchoNavHost
@@ -27,7 +29,8 @@ class MainActivity : FragmentActivity() {
 
         val container = (application as RanchoApp).container
         setContent {
-            RanchoTheme {
+            val isDarkMode by container.themeManager.isDarkMode.collectAsState()
+            RanchoTheme(darkTheme = isDarkMode) {
                 RanchoNavHost(container = container)
             }
         }

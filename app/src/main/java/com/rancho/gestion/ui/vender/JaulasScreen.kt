@@ -1,29 +1,45 @@
 package com.rancho.gestion.ui.vender
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.ViewWeek
+import androidx.compose.material.icons.filled.Visibility
+import com.rancho.gestion.ui.theme.SanMartinOrange
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -31,7 +47,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.core.net.toUri
+import coil.compose.AsyncImage
 import com.rancho.gestion.AppContainer
+import com.rancho.gestion.R
 import com.rancho.gestion.data.entities.*
 import com.rancho.gestion.data.repository.ResultadoOperacion
 import com.rancho.gestion.domain.JaulaCapacidad
@@ -44,13 +64,16 @@ import com.rancho.gestion.ui.components.InfoDialog
 import com.rancho.gestion.ui.components.LabeledProgressBar
 import com.rancho.gestion.ui.components.SectionCard
 import com.rancho.gestion.ui.components.SimpleFormDialog
+import com.rancho.gestion.ui.components.ThousandsSeparatorVisualTransformation
 import com.rancho.gestion.ui.theme.RanchoPrimary
 import com.rancho.gestion.ui.theme.RanchoSuccess
 import com.rancho.gestion.ui.theme.RanchoTextSecondary
+import com.rancho.gestion.util.ImageOptimizer
 import com.rancho.gestion.util.SessionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 @Composable
 fun JaulasScreen(container: AppContainer, onBack: () -> Unit) {
@@ -144,7 +167,7 @@ fun JaulasContent(container: AppContainer, isActive: Boolean = true, snackbarHos
             message = "¿Estás seguro de eliminar el lote '${jaulaAEliminar!!.comprador}'? Esta acción no se puede deshacer.",
             onConfirm = {
                 val jaula = jaulaAEliminar ?: return@ConfirmDialog
-                jaulaAEliminar = null // Cerrar inmediatamente
+                jaulaAEliminar = null
                 scope.launch {
                     try {
                         container.ventaRepository.eliminarJaula(jaula)
@@ -159,7 +182,6 @@ fun JaulasContent(container: AppContainer, isActive: Boolean = true, snackbarHos
     }
 
     if (jaulaParaAgregar != null) {
-        // Encontrar la versión reactiva de la jaula para tener totales actualizados
         val jaulaActualizada = jaulas.find { it.idVenta == jaulaParaAgregar!!.idVenta } ?: jaulaParaAgregar!!
         AgregarAnimalesDialog(
             jaula = jaulaActualizada,
@@ -259,103 +281,188 @@ private fun JaulaCard(
     onVerAnimales: () -> Unit,
     onVender: () -> Unit
 ) {
-    val currency = remember { java.text.NumberFormat.getCurrencyInstance(java.util.Locale("es", "MX")) }
+    val currency = remember { java.text.NumberFormat.getCurrencyInstance(java.util.Locale.forLanguageTag("es-MX")) }
     val cabezas = jaula.totalCabezas
     val toneladas = jaula.pesoTotal / 1000.0
 
-    SectionCard {
-        Text(
-            text = "Jaula: ${jaula.comprador}",
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.titleMedium
-        )
-        Spacer(Modifier.height(12.dp))
-        LabeledProgressBar("Cabezas", cabezas.toString(), "110", cabezas.toFloat() / 110)
-        Spacer(Modifier.height(10.dp))
-        LabeledProgressBar(
-            "Toneladas",
-            String.format("%.1f", jaula.pesoTotal / 1000.0),
-            "24.5",
-            (toneladas / 24.5).toFloat()
-        )
-        
-        Spacer(Modifier.height(12.dp))
-        
-        // Fila 1: Ver detalles / Agregar Animales (Swap PROC-19)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onVerAnimales) { 
-                Text("Ver detalles", fontWeight = FontWeight.Bold) 
-            }
-            TextButton(onClick = onAgregar) { 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Agregar Animales", fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.width(4.dp))
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(Modifier.padding(20.dp)) {
+            // TÍTULO DE LA JAULA
+            Text(
+                text = "Jaula: ${jaula.comprador}",
+                fontWeight = FontWeight.ExtraBold,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(14.dp))
+
+            // BARRA DE CABEZAS
+            LabeledProgressBar(
+                label = "Cabezas",
+                val1 = cabezas.toString(),
+                val2 = "110",
+                progress = cabezas.toFloat() / 110f
+            )
+            Spacer(Modifier.height(12.dp))
+
+            // BARRA DE TONELADAS
+            LabeledProgressBar(
+                label = "Toneladas",
+                val1 = String.format(java.util.Locale.forLanguageTag("es-MX"), "%.1f", toneladas),
+                val2 = "24.5",
+                progress = (toneladas / 24.5).toFloat()
+            )
+            
+            Spacer(Modifier.height(16.dp))
+            
+            // FILA DE ACCIONES 1 (VER DETALLES Y AGREGAR ANIMALES)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onVerAnimales,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                ) { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Ver detalles",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                TextButton(
+                    onClick = onAgregar,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                ) { 
+                    Text(
+                        "Agregar Animales +",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
-        }
 
-        Spacer(Modifier.height(8.dp))
-        
-        // Fila 2: Eliminar (Admin) / Vender Jaula
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            if (isAdmin) {
-                TextButton(onClick = onEliminar) {
-                    Text("Eliminar", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 10.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+            )
+
+            // FILA DE ACCIONES 2 (ELIMINAR Y VENDER JAULA)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isAdmin) {
+                    TextButton(
+                        onClick = onEliminar,
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "Eliminar",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                    }
+                } else {
+                    Spacer(Modifier.width(1.dp))
                 }
-            } else {
-                Spacer(Modifier.width(1.dp))
-            }
-            Button(
-                onClick = onVender, 
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.height(40.dp)
-            ) { 
-                Text("Vender Jaula", fontWeight = FontWeight.Bold) 
-            }
-        }
 
-        Spacer(Modifier.height(12.dp))
-
-        // Nueva Fila: Monto Total (Ajuste visual para no cortar cantidad)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "Total",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = RanchoPrimary
-                )
-                Text(
-                    text = "Acumulado:",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = RanchoPrimary
-                )
+                Button(
+                    onClick = onVender, 
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.height(44.dp)
+                ) { 
+                    Text("Vender Jaula", fontWeight = FontWeight.Bold, fontSize = 15.sp) 
+                }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = currency.format(jaula.montoTotal),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = RanchoPrimary,
-                    maxLines = 1,
-                    softWrap = false
-                )
-                Spacer(Modifier.width(8.dp))
-                Icon(
-                    imageVector = Icons.Default.Payments, 
-                    contentDescription = null,
-                    tint = RanchoSuccess,
-                    modifier = Modifier.size(28.dp)
-                )
+
+            Spacer(Modifier.height(16.dp))
+
+            // CAJA DE TOTAL ACUMULADO CON LÍNEA DIVISORA VERTICAL Y BILLETERA
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Total",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "acumulado",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .height(34.dp)
+                            .width(1.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = currency.format(jaula.montoTotal),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Icon(
+                            imageVector = ImageVector.vectorResource(id = R.drawable.ic_money_stack),
+                            contentDescription = null,
+                            tint = SanMartinOrange,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -377,12 +484,10 @@ private fun NuevaJaulaDialog(
         OutlinedTextField(
             value = nombre,
             onValueChange = { input ->
-                // Filtrar caracteres: letras, números, espacios, ñ, Ñ, vocales acentuadas, guión y guión bajo
                 val filtered = input.filter { 
                     it.isLetterOrDigit() || it.isWhitespace() || it == 'ñ' || it == 'Ñ' || 
                     "áéíóúÁÉÍÓÚ-_".contains(it) 
                 }
-                // Limitar a 50 caracteres
                 if (filtered.length <= 50) {
                     nombre = filtered
                 }
@@ -416,6 +521,7 @@ private fun AgregarAnimalesDialog(
     var mensaje by remember { mutableStateOf<String?>(null) }
     var mostrarAlertaFase by remember { mutableStateOf(false) }
     var mostrarScanner by remember { mutableStateOf(false) }
+    var mostrarFormularioNuevoAnimal by remember { mutableStateOf(false) }
     var searchArete by remember { mutableStateOf("") }
     var animalParaPeso by remember { mutableStateOf<Animal?>(null) }
 
@@ -483,6 +589,18 @@ private fun AgregarAnimalesDialog(
         )
     }
 
+    if (mostrarFormularioNuevoAnimal) {
+        RegistrarYAgregarAnimalAJaulaDialog(
+            jaula = jaula,
+            container = container,
+            onDismiss = { mostrarFormularioNuevoAnimal = false },
+            onSuccess = {
+                mostrarFormularioNuevoAnimal = false
+                searchArete = ""
+            }
+        )
+    }
+
     if (mostrarScanner && isActive) {
         androidx.compose.ui.window.Dialog(
             onDismissRequest = { mostrarScanner = false },
@@ -513,7 +631,6 @@ private fun AgregarAnimalesDialog(
                     Text("Agregar animales a ${jaula.comprador}", style = MaterialTheme.typography.titleLarge)
                     Spacer(Modifier.height(16.dp))
                     
-                    // Buscador manual y botón de Scanner (RF-UPDATE: Dinámico)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -521,7 +638,7 @@ private fun AgregarAnimalesDialog(
                         OutlinedTextField(
                             value = searchArete,
                             onValueChange = { searchArete = it },
-                            label = { Text("Ingresar Arete") },
+                            label = { Text("Buscar o ingresar arete") },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             shape = RoundedCornerShape(12.dp),
@@ -538,7 +655,20 @@ private fun AgregarAnimalesDialog(
                         }
                     }
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(10.dp))
+
+                    // OPCIÓN PARA REGISTRAR Y AGREGAR UN ANIMAL NUEVO NO EXISTENTE
+                    OutlinedButton(
+                        onClick = { mostrarFormularioNuevoAnimal = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Registrar y agregar nuevo animal", fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(Modifier.height(14.dp))
                     
                     val filtrados = remember(searchArete, candidatos) {
                         if (searchArete.isBlank()) candidatos
@@ -606,6 +736,581 @@ private fun AgregarAnimalesDialog(
     }
 }
 
+/** Diálogo combinado para registrar un animal nuevo en DB y agregarlo directamente a la jaula. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RegistrarYAgregarAnimalAJaulaDialog(
+    jaula: Venta,
+    container: AppContainer,
+    onDismiss: () -> Unit,
+    onSuccess: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var tipoArete by remember { mutableStateOf(TipoArete.SADER) }
+    var arete by remember { mutableStateOf("") }
+    var color by remember { mutableStateOf("") }
+    var sexo by remember { mutableStateOf(Sexo.MACHO) }
+    var pesoEntrada by remember { mutableStateOf("") }
+    var precioCompra by remember { mutableStateOf("") }
+    var proveedor by remember { mutableStateOf("") }
+
+    var nuevoPeso by remember { mutableStateOf("") }
+    var montoCobro by remember { mutableStateOf("") }
+
+    var fotoUriStr by remember { mutableStateOf<String?>(null) }
+    var pendingUriStr by remember { mutableStateOf<String?>(null) }
+
+    var error by remember { mutableStateOf<String?>(null) }
+    var guardando by remember { mutableStateOf(false) }
+    var mostrarScanner by remember { mutableStateOf(false) }
+
+    var colorMenuAbierto by remember { mutableStateOf(false) }
+    var sexoMenuAbierto by remember { mutableStateOf(false) }
+    val opcionesColor = listOf("Negro", "Hosco", "Ballo", "Blanco", "Careto", "Sardo", "Pinto")
+
+    val lanzadorCamara = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { exitoso ->
+        if (exitoso) fotoUriStr = pendingUriStr
+    }
+
+    val lanzadorPermisoCamara = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { concedido ->
+        if (concedido) {
+            try {
+                val uri = crearUriParaFoto(context)
+                pendingUriStr = uri.toString()
+                lanzadorCamara.launch(uri)
+            } catch (e: Exception) {
+                error = "Error al preparar cámara: ${e.message}"
+            }
+        } else {
+            error = "Se necesita permiso de cámara"
+        }
+    }
+
+    val lanzadorPermisoScanner = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { concedido ->
+        if (concedido) mostrarScanner = true else error = "Se necesita permiso de cámara para escanear"
+    }
+
+    fun abrirCamara() {
+        val yaConcedido = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        if (yaConcedido) {
+            try {
+                val uri = crearUriParaFoto(context)
+                pendingUriStr = uri.toString()
+                lanzadorCamara.launch(uri)
+            } catch (e: Exception) {
+                error = "Error al abrir cámara: ${e.message}"
+            }
+        } else {
+            lanzadorPermisoCamara.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    fun iniciarEscaneo() {
+        val yaConcedido = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        if (yaConcedido) mostrarScanner = true else lanzadorPermisoScanner.launch(Manifest.permission.CAMERA)
+    }
+
+    if (mostrarScanner) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { mostrarScanner = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false
+            )
+        ) {
+            BarcodeScannerScreen(
+                onResult = { result ->
+                    arete = result.filter { it.isDigit() }.take(15)
+                    mostrarScanner = false
+                },
+                onBack = { mostrarScanner = false }
+            )
+        }
+    } else {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = onDismiss,
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.95f)
+                    .fillMaxHeight(0.9f),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = "Registrar y Cargar a ${jaula.comprador}",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(16.dp))
+
+                    // 1. FOTOGRAFÍA
+                    Text("Fotografía", style = MaterialTheme.typography.labelLarge, color = Color(0xFF475569), fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0xFFEBE7DF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (fotoUriStr != null) {
+                                AsyncImage(
+                                    model = fotoUriStr!!.toUri(),
+                                    contentDescription = "Foto animal",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(id = R.drawable.ic_vaca_placeholder),
+                                    contentDescription = null,
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(44.dp)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column {
+                            OutlinedButton(
+                                onClick = { abrirCamara() },
+                                shape = RoundedCornerShape(50),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCBD5E1))
+                            ) {
+                                Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF334155))
+                                Spacer(Modifier.width(6.dp))
+                                Text(if (fotoUriStr == null) "Tomar foto" else "Repetir foto", color = Color(0xFF334155), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            if (fotoUriStr != null) {
+                                TextButton(onClick = { fotoUriStr = null }) {
+                                    Text("Quitar foto", color = MaterialTheme.colorScheme.error, fontSize = 11.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // 2. TIPO DE ARETE - CONTROL SEGMENTADO ANIMADO Y FLUIDO
+                    val targetBgColor = if (tipoArete == TipoArete.SADER) Color(0xFFFFD54F) else Color(0xFF80CBC4)
+                    val animatedBgColor by animateColorAsState(
+                        targetValue = targetBgColor,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioLowBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        ),
+                        label = "segmentColor"
+                    )
+
+                    val saderTextColor by animateColorAsState(
+                        targetValue = if (tipoArete == TipoArete.SADER) Color(0xFF1B364B) else Color(0xFF64748B),
+                        animationSpec = tween(durationMillis = 250),
+                        label = "saderTextColor"
+                    )
+
+                    val otroTextColor by animateColorAsState(
+                        targetValue = if (tipoArete == TipoArete.OTRO) Color(0xFF1B364B) else Color(0xFF64748B),
+                        animationSpec = tween(durationMillis = 250),
+                        label = "otroTextColor"
+                    )
+
+                    Text("Tipo de Arete", style = MaterialTheme.typography.labelLarge, color = Color(0xFF475569), fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Surface(
+                        color = Color(0xFFE2E8ED),
+                        shape = RoundedCornerShape(50),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                    ) {
+                        BoxWithConstraints(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(4.dp)
+                        ) {
+                            val segmentWidth = maxWidth / 2
+
+                            val indicatorOffset by animateDpAsState(
+                                targetValue = if (tipoArete == TipoArete.SADER) 0.dp else segmentWidth,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioLowBouncy,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "indicatorOffset"
+                            )
+
+                            // PÍLDORA DESLIZANTE CON COLOR ANIMADO
+                            Box(
+                                modifier = Modifier
+                                    .offset { androidx.compose.ui.unit.IntOffset(indicatorOffset.roundToPx(), 0) }
+                                    .width(segmentWidth)
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(50))
+                                    .background(animatedBgColor)
+                            )
+
+                            // SEGMENTOS CLICKEABLES
+                            Row(modifier = Modifier.fillMaxSize()) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(50))
+                                        .clickable {
+                                            tipoArete = TipoArete.SADER
+                                            arete = ""
+                                            error = null
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("SADER", color = saderTextColor, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(50))
+                                        .clickable {
+                                            tipoArete = TipoArete.OTRO
+                                            arete = ""
+                                            error = null
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("OTRO", color = otroTextColor, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // 3. CAMPO ARETE
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = arete,
+                            onValueChange = { input ->
+                                val digitsOnly = input.filter { it.isDigit() }
+                                val maxLen = if (tipoArete == TipoArete.SADER) 15 else 6
+                                arete = digitsOnly.take(maxLen)
+                                error = null
+                            },
+                            label = { Text(if (tipoArete == TipoArete.SADER) "Arete SADER" else "Arete OTRO") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (tipoArete == TipoArete.SADER) {
+                            Spacer(Modifier.width(8.dp))
+                            Button(
+                                onClick = { iniciarEscaneo() },
+                                modifier = Modifier
+                                    .height(56.dp)
+                                    .width(76.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = RanchoPrimary),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.ViewWeek, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Text("Escanear", fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // 4. DROPDOWNS COLOR Y SEXO
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ExposedDropdownMenuBox(
+                            expanded = colorMenuAbierto,
+                            onExpandedChange = { colorMenuAbierto = it },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            OutlinedTextField(
+                                value = color,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Color") },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = colorMenuAbierto) }
+                            )
+                            ExposedDropdownMenu(expanded = colorMenuAbierto, onDismissRequest = { colorMenuAbierto = false }) {
+                                opcionesColor.forEach { op ->
+                                    DropdownMenuItem(text = { Text(op) }, onClick = { color = op; colorMenuAbierto = false })
+                                }
+                            }
+                        }
+
+                        ExposedDropdownMenuBox(
+                            expanded = sexoMenuAbierto,
+                            onExpandedChange = { sexoMenuAbierto = it },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            OutlinedTextField(
+                                value = if (sexo == Sexo.MACHO) "Macho" else "Hembra",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Sexo") },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth().menuAnchor(),
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sexoMenuAbierto) }
+                            )
+                            ExposedDropdownMenu(expanded = sexoMenuAbierto, onDismissRequest = { sexoMenuAbierto = false }) {
+                                DropdownMenuItem(text = { Text("Macho") }, onClick = { sexo = Sexo.MACHO; sexoMenuAbierto = false })
+                                DropdownMenuItem(text = { Text("Hembra") }, onClick = { sexo = Sexo.HEMBRA; sexoMenuAbierto = false })
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // 5. PESO ENTRADA Y PRECIO COMPRA
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = pesoEntrada,
+                            onValueChange = { input ->
+                                val filtered = input.replace(',', '.')
+                                if (filtered.all { it.isDigit() || it == '.' } && filtered.count { it == '.' } <= 1) {
+                                    val parts = filtered.split('.')
+                                    val isDeleting = filtered.length < pesoEntrada.length
+                                    if (isDeleting || parts[0].length <= 4) {
+                                        if (parts.size == 1 || parts[1].length <= 2) {
+                                            pesoEntrada = filtered
+                                            if (nuevoPeso.isBlank()) nuevoPeso = filtered
+                                            error = null
+                                        }
+                                    }
+                                }
+                            },
+                            label = { Text("Peso Ent. (kg)") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            visualTransformation = ThousandsSeparatorVisualTransformation(),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        OutlinedTextField(
+                            value = precioCompra,
+                            onValueChange = { input ->
+                                val filtered = input.replace(',', '.')
+                                if (filtered.all { it.isDigit() || it == '.' } && filtered.count { it == '.' } <= 1) {
+                                    val parts = filtered.split('.')
+                                    val isDeleting = filtered.length < precioCompra.length
+                                    if (isDeleting || parts[0].length <= 6) {
+                                        if (parts.size == 1 || parts[1].length <= 2) {
+                                            precioCompra = filtered
+                                            error = null
+                                        }
+                                    }
+                                }
+                            },
+                            label = { Text("P. Compra ($)") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            visualTransformation = ThousandsSeparatorVisualTransformation(),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // 6. PROVEEDOR
+                    OutlinedTextField(
+                        value = proveedor,
+                        onValueChange = { input ->
+                            if (input.length <= 50) {
+                                val allowedChars = Regex("[a-zA-Z0-9 ñÑáéíóúÁÉÍÓÚ\\-_]*")
+                                if (allowedChars.matches(input)) proveedor = input
+                            }
+                        },
+                        label = { Text("Proveedor") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+                    HorizontalDivider(color = Color(0xFFCBD5E1))
+                    Spacer(Modifier.height(16.dp))
+
+                    Text("Detalles de Carga a Jaula", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = RanchoPrimary)
+                    Spacer(Modifier.height(10.dp))
+
+                    // 7. NUEVO PESO EN JAULA Y MONTO A COBRAR
+                    OutlinedTextField(
+                        value = nuevoPeso,
+                        onValueChange = { input ->
+                            val filtered = input.replace(',', '.')
+                            if (filtered.all { it.isDigit() || it == '.' } && filtered.count { it == '.' } <= 1) {
+                                val parts = filtered.split('.')
+                                val isDeleting = filtered.length < nuevoPeso.length
+                                if (isDeleting || parts[0].length <= 4) {
+                                    if (parts.size == 1 || parts[1].length <= 2) {
+                                        nuevoPeso = filtered
+                                        error = null
+                                    }
+                                }
+                            }
+                        },
+                        label = { Text("Nuevo Peso en Jaula (kg)") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        visualTransformation = ThousandsSeparatorVisualTransformation(),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = montoCobro,
+                        onValueChange = { input ->
+                            val filtered = input.replace(',', '.')
+                            if (filtered.all { it.isDigit() || it == '.' } && filtered.count { it == '.' } <= 1) {
+                                val parts = filtered.split('.')
+                                val isDeleting = filtered.length < montoCobro.length
+                                if (isDeleting || parts[0].length <= 6) {
+                                    if (parts.size == 1 || parts[1].length <= 2) {
+                                        montoCobro = filtered
+                                        error = null
+                                    }
+                                }
+                            }
+                        },
+                        label = { Text("Monto a Cobrar por este Animal ($)") },
+                        placeholder = { Text("Ej. 15000") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        visualTransformation = ThousandsSeparatorVisualTransformation(),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    error?.let {
+                        Spacer(Modifier.height(10.dp))
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    // BOTONES CANCELAR Y CONFIRMAR
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = onDismiss, enabled = !guardando) {
+                            Text("Cancelar")
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Button(
+                            onClick = {
+                                val pEntD = pesoEntrada.toDoubleOrNull()
+                                val pCompD = precioCompra.toDoubleOrNull()
+                                val nPesoD = nuevoPeso.toDoubleOrNull()
+                                val mCobroD = montoCobro.toDoubleOrNull()
+
+                                when {
+                                    arete.isBlank() -> error = "El arete es obligatorio"
+                                    tipoArete == TipoArete.SADER && arete.length != 15 -> error = "El arete SADER debe tener exactamente 15 dígitos"
+                                    tipoArete == TipoArete.OTRO && arete.length > 6 -> error = "El arete OTRO no puede exceder 6 dígitos"
+                                    color.isBlank() -> error = "El color es obligatorio"
+                                    pEntD == null || pEntD < 40 || pEntD > 1000 -> error = "El peso de entrada debe estar entre 40 y 1,000 kg"
+                                    pCompD == null || pCompD < 400 || pCompD > 100000 -> error = "El precio de compra debe estar entre 400 y 100,000"
+                                    proveedor.isBlank() -> error = "El proveedor es obligatorio"
+                                    nPesoD == null || nPesoD < 40 || nPesoD > 1000 -> error = "El nuevo peso debe estar entre 40 y 1,000 kg"
+                                    mCobroD == null || mCobroD < 100 || mCobroD > 100000 -> error = "El monto a cobrar debe estar entre $100 y $100,000"
+                                    else -> {
+                                        guardando = true
+                                        scope.launch {
+                                            val optimizedPath = if (fotoUriStr != null) {
+                                                withContext(Dispatchers.IO) {
+                                                    ImageOptimizer.optimize(context, fotoUriStr!!.toUri())
+                                                }
+                                            } else null
+
+                                            // STEP 1: REGISTRAR ANIMAL EN DB
+                                            val resReg = container.ganadoRepository.registrarAnimal(
+                                                arete = arete,
+                                                tipoArete = tipoArete,
+                                                color = color,
+                                                sexo = sexo,
+                                                peso = pEntD,
+                                                precioCompra = pCompD,
+                                                proveedor = proveedor.trim(),
+                                                fotografiaLocal = optimizedPath,
+                                                idUsuario = SessionManager.currentUserId(),
+                                                esAdmin = SessionManager.isAdmin()
+                                            )
+
+                                            if (resReg is ResultadoOperacion.Error) {
+                                                guardando = false
+                                                error = resReg.mensaje
+                                                return@launch
+                                            }
+
+                                            // STEP 2: AGREGAR A LA JAULA
+                                            val resAdd = container.ventaRepository.agregarAnimalAVenta(
+                                                ventaId = jaula.idVenta,
+                                                arete = arete,
+                                                pesoSalida = nPesoD,
+                                                montoCobro = mCobroD
+                                            )
+
+                                            guardando = false
+                                            if (resAdd is ResultadoOperacion.Ok) {
+                                                onSuccess()
+                                            } else if (resAdd is ResultadoOperacion.Error) {
+                                                error = resAdd.mensaje
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !guardando,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(if (guardando) "Procesando..." else "Registrar y Cargar")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun crearUriParaFoto(context: Context): Uri {
+    val carpeta = File(context.cacheDir, "fotos_ganado").apply { if (!exists()) mkdirs() }
+    val archivo = File.createTempFile("animal_", ".jpg", carpeta)
+    val authority = "${context.packageName}.fileprovider"
+    return FileProvider.getUriForFile(context, authority, archivo)
+}
+
 /** Diálogo para pedir el peso actual y monto total por animal antes de agregar a la jaula. */
 @Composable
 fun PesoActualDialog(
@@ -642,6 +1347,7 @@ fun PesoActualDialog(
             label = { Text("Nuevo Peso (kg)") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            visualTransformation = ThousandsSeparatorVisualTransformation(),
             modifier = Modifier.fillMaxWidth()
         )
         
@@ -653,6 +1359,7 @@ fun PesoActualDialog(
             label = { Text("Monto a Cobrar por este Animal ($)") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            visualTransformation = ThousandsSeparatorVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Ej. 15000") }
         )
@@ -716,7 +1423,6 @@ private fun VerAnimalesDialog(
             color = MaterialTheme.colorScheme.surface
         ) {
             Column(Modifier.padding(16.dp)) {
-                // Header
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -732,7 +1438,6 @@ private fun VerAnimalesDialog(
                 
                 Spacer(Modifier.height(16.dp))
                 
-                // Table Header
                 Row(
                     Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -742,7 +1447,7 @@ private fun VerAnimalesDialog(
                     Text("Peso (kg)", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelMedium)
                     Text("Precio (kg)", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.labelMedium)
                     Text("Subtotal", modifier = Modifier.weight(1.2f), textAlign = TextAlign.End, style = MaterialTheme.typography.labelMedium)
-                    Spacer(Modifier.width(40.dp)) // For delete icon
+                    Spacer(Modifier.width(40.dp))
                 }
                 
                 HorizontalDivider()
@@ -776,7 +1481,6 @@ private fun VerAnimalesDialog(
                     }
                 }
 
-                // Footer
                 Spacer(Modifier.height(8.dp))
                 Row(
                     Modifier.fillMaxWidth(),
