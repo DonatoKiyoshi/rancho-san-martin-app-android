@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -25,9 +26,6 @@ import com.rancho.gestion.data.entities.Usuario
 import com.rancho.gestion.ui.components.BackTopBar
 import com.rancho.gestion.ui.components.ConfirmDialog
 import com.rancho.gestion.ui.components.SimpleFormDialog
-import com.rancho.gestion.ui.theme.RanchoCard
-import com.rancho.gestion.ui.theme.RanchoPrimary
-import com.rancho.gestion.ui.theme.RanchoTextSecondary
 import com.rancho.gestion.util.SessionManager
 import kotlinx.coroutines.launch
 
@@ -56,13 +54,14 @@ fun UsuariosScreen(container: AppContainer, onBack: () -> Unit) {
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { mostrarNuevoUsuario = true },
-                icon = { Icon(Icons.Default.PersonAdd, null) },
-                text = { Text("Agregar Usuario") }
+                icon = { Icon(Icons.Default.PersonAdd, null, tint = MaterialTheme.colorScheme.onPrimary) },
+                text = { Text("Agregar Usuario", color = MaterialTheme.colorScheme.onPrimary) },
+                containerColor = MaterialTheme.colorScheme.primary
             )
         }
     ) { padding ->
         LazyColumn(
-            Modifier.padding(padding).fillMaxSize().padding(horizontal = 20.dp),
+            Modifier.padding(padding).fillMaxSize().background(MaterialTheme.colorScheme.background).padding(horizontal = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
@@ -86,7 +85,7 @@ fun UsuariosScreen(container: AppContainer, onBack: () -> Unit) {
                 datosRegistroConfirmar = Usuario(
                     nombre = nombre,
                     nombreUsuario = user.trim().lowercase(),
-                    passwordHash = pass, // Guardamos la temporal para mostrarla
+                    passwordHash = pass,
                     rol = Rol.ADMINISTRADOR
                 )
             }
@@ -116,7 +115,6 @@ fun UsuariosScreen(container: AppContainer, onBack: () -> Unit) {
         }
     }
 
-    // Estado para mensaje de "sin cambios"
     var mostrarSinCambios by remember { mutableStateOf(false) }
 
     if (usuarioAEditar != null) {
@@ -173,8 +171,8 @@ fun UsuariosScreen(container: AppContainer, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { mostrarSinCambios = false },
             confirmButton = { TextButton(onClick = { mostrarSinCambios = false }) { Text("Aceptar") } },
-            title = { Text("Sin cambios") },
-            text = { Text("No se ha hecho ningún cambio a los datos del usuario.") }
+            title = { Text("Sin cambios", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("No se ha hecho ningún cambio a los datos del usuario.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         )
     }
 
@@ -224,7 +222,8 @@ fun UsuariosScreen(container: AppContainer, onBack: () -> Unit) {
                     text = if (isMe) "Confirmar Auto-Eliminación" else "Eliminar Usuario",
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center,
-                    fontWeight = FontWeight.ExtraBold
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 ) 
             },
             text = { 
@@ -235,6 +234,7 @@ fun UsuariosScreen(container: AppContainer, onBack: () -> Unit) {
                         "¿Estás seguro de eliminar a ${usuarioAEliminar!!.nombre}? Esta acción no se puede deshacer."
                     },
                     textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.fillMaxWidth()
                 )
             },
@@ -276,7 +276,7 @@ private fun UsuarioCard(
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.elevatedCardColors(containerColor = RanchoCard),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
         Row(
@@ -284,32 +284,55 @@ private fun UsuarioCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                Modifier.size(48.dp).clip(CircleShape).background(RanchoPrimary.copy(alpha = 0.1f)),
+                Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    usuario.nombre.take(1).uppercase(),
-                    color = RanchoPrimary,
+                    text = usuario.nombre.take(1).uppercase(),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
                 )
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(usuario.nombre, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "@${usuario.nombreUsuario} · ${if (usuario.rol == Rol.ADMINISTRADOR) "Administrador" else "Empleado"}",
-                    color = RanchoTextSecondary,
+                    text = usuario.nombre,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "@${usuario.nombreUsuario} · ${if (usuario.rol == Rol.ADMINISTRADOR) "Administrador" else "Empleado"}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall
                 )
-                if (isMe) Text("Tú", color = RanchoPrimary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                if (isMe) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "Tú",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
             
             Row {
                 if (usuario.idUsuario != 1L) {
-                    IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Editar", tint = RanchoTextSecondary) }
-                    IconButton(onClick = onResetPassword) { Icon(Icons.Default.LockReset, "Restablecer", tint = RanchoTextSecondary) }
-                    IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Eliminar", tint = MaterialTheme.colorScheme.error) }
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = onResetPassword) {
+                        Icon(Icons.Default.LockReset, "Restablecer", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Default.Delete, "Eliminar", tint = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         }
@@ -444,7 +467,7 @@ private fun RestablecerPasswordDialog(
             }
         }
     ) {
-        Text("Usuario: $nombreUsuario", style = MaterialTheme.typography.bodyMedium)
+        Text("Usuario: $nombreUsuario", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = pass,

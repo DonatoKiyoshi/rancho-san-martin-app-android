@@ -301,7 +301,7 @@ object PdfGanadoGenerator {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
-        canvas.drawText("Gráficos y Resumen Analítico del Hato", margin, y, secTitlePaint)
+        canvas.drawText("Gráficos y Resumen Analítico del Ganado", margin, y, secTitlePaint)
 
         val subPaint = Paint().apply {
             color = colorTextMuted
@@ -391,12 +391,29 @@ object PdfGanadoGenerator {
             legY += 18f
         }
 
-        val areteX = margin + 450f
-        canvas.drawText("Resumen Tipo Arete:", areteX, y + 15f, secTitlePaint.apply { textSize = 11f })
-        var areteY = y + 32f
+        // RESUMEN TIPO ARETE CON GRÁFICO DE BARRAS HORIZONTALES (AMARILLO CANARIO Y AZUL PASTEL)
+        val areteX = margin + 420f
+        canvas.drawText("Resumen por Tipo de Arete", areteX, y + 12f, secTitlePaint.apply { textSize = 12f })
+        var areteY = y + 28f
+        val areteMaxBarWidth = 180f
+
         stats.distribucionTipoArete.forEach { item ->
-            canvas.drawText("${item.label}: ${item.cantidad} cabezas (${String.format(locale, "%.1f", item.porcentaje)}%)", areteX, areteY, subPaint)
-            areteY += 16f
+            val isSader = item.label.contains("SADER", ignoreCase = true)
+            val barColor = if (isSader) Color.parseColor("#FFD54F") else Color.parseColor("#80CBC4")
+            val pct = (item.porcentaje / 100.0).toFloat().coerceIn(0f, 1f)
+            val barW = areteMaxBarWidth * pct
+
+            canvas.drawText(item.label, areteX, areteY + 10f, subPaint.apply { color = colorTextDark; typeface = Typeface.DEFAULT_BOLD })
+            
+            canvas.drawRoundRect(areteX, areteY + 16f, areteX + areteMaxBarWidth, areteY + 26f, 5f, 5f, Paint().apply { color = Color.parseColor("#E2E8ED") })
+            if (barW > 0f) {
+                canvas.drawRoundRect(areteX, areteY + 16f, areteX + barW, areteY + 26f, 5f, 5f, Paint().apply { color = barColor })
+            }
+
+            val valTxt = "${item.cantidad} cabezas (${String.format(locale, "%.1f", item.porcentaje)}%)"
+            canvas.drawText(valTxt, areteX + areteMaxBarWidth + 8f, areteY + 24f, subPaint.apply { color = colorTextMuted; typeface = Typeface.DEFAULT })
+
+            areteY += 34f
         }
     }
 
