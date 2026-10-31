@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -21,6 +22,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Payments
@@ -625,12 +629,59 @@ private fun AgregarAnimalesDialog(
             )
         }
     } else {
-        androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-            Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)) {
-                Column(Modifier.padding(20.dp).heightIn(max = 600.dp)) {
-                    Text("Agregar animales a ${jaula.comprador}", style = MaterialTheme.typography.titleLarge)
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = onDismiss,
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.92f)
+                    .fillMaxHeight(0.88f),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(Modifier.fillMaxSize().padding(22.dp)) {
+                    // Encabezado con título, estado y botón de cierre (X)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Agregar animales",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = "Jaula: ${jaula.comprador}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Cerrar",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
                     Spacer(Modifier.height(16.dp))
-                    
+
+                    // Búsqueda e integración de escáner
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -638,89 +689,154 @@ private fun AgregarAnimalesDialog(
                         OutlinedTextField(
                             value = searchArete,
                             onValueChange = { searchArete = it },
-                            label = { Text("Buscar o ingresar arete") },
+                            placeholder = { Text("Buscar o ingresar arete...", fontSize = 14.sp) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) }
+                            shape = RoundedCornerShape(16.dp),
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = { iniciarEscaneo() }) {
+                                    Icon(
+                                        Icons.Default.ViewWeek,
+                                        contentDescription = "Escanear",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
                         )
-                        Spacer(Modifier.width(8.dp))
-                        IconButton(
-                            onClick = { iniciarEscaneo() },
-                            modifier = Modifier
-                                .size(56.dp)
-                                .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Botón de acción destacada: Registrar y agregar nuevo animal
+                    FilledTonalButton(
+                        onClick = { mostrarFormularioNuevoAnimal = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.ViewWeek, contentDescription = "Escanear", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.AddCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = "Registrar y agregar nuevo animal",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Icon(
+                                Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f),
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
 
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(16.dp))
 
-                    // OPCIÓN PARA REGISTRAR Y AGREGAR UN ANIMAL NUEVO NO EXISTENTE
-                    OutlinedButton(
-                        onClick = { mostrarFormularioNuevoAnimal = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Registrar y agregar nuevo animal", fontWeight = FontWeight.Bold)
-                    }
-
-                    Spacer(Modifier.height(14.dp))
-                    
                     val filtrados = remember(searchArete, candidatos) {
                         if (searchArete.isBlank()) candidatos
                         else candidatos.filter { it.numeroArete.contains(searchArete, ignoreCase = true) }
                     }
-                    
-                    mensaje?.let { 
-                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                        Spacer(Modifier.height(8.dp))
-                    }
-                    
-                    Text("Disponibles para carga:", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(8.dp))
 
-                    if (filtrados.isEmpty()) {
+                    mensaje?.let {
                         Text(
-                            if (searchArete.isBlank()) "No hay animales disponibles." 
-                            else "No hay coincidencias para '$searchArete'",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
-                    
-                    LazyColumn(Modifier.weight(1f, fill = false)) {
+
+                    Text(
+                        text = "Disponibles para carga (${filtrados.size}):",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.height(10.dp))
+
+                    if (filtrados.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (searchArete.isBlank()) "No hay animales disponibles."
+                                else "No hay coincidencias para '$searchArete'",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                         items(filtrados, key = { it.numeroArete }) { animal ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 2.dp,
+                                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant)
                             ) {
-                                Column(Modifier.weight(1f)) {
-                                    AreteTag(animal.numeroArete, animal.tipoArete)
-                                    val sexoStr = if (animal.sexo == Sexo.MACHO) "Macho" else "Hembra"
-                                    Text(
-                                        text = "$sexoStr · ${animal.color} · ${animal.pesoEntrada.toInt()} kg", 
-                                        fontSize = 12.sp, 
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Button(
-                                    onClick = { intentarSeleccionarAnimal(animal) },
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) { 
-                                    Text("Agregar", fontSize = 12.sp) 
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        AreteTag(animal.numeroArete, animal.tipoArete)
+                                        Spacer(Modifier.height(4.dp))
+                                        val sexoStr = if (animal.sexo == Sexo.MACHO) "Macho" else "Hembra"
+                                        Text(
+                                            text = "$sexoStr · ${animal.color} · ${animal.pesoEntrada.toInt()} kg",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Button(
+                                        onClick = { intentarSeleccionarAnimal(animal) },
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Agregar", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                         }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = onDismiss) { Text("Cerrar") }
                     }
                 }
             }
