@@ -137,7 +137,7 @@ fun ReportesGanadoScreen(
     var tipoAreteFiltro by remember { mutableStateOf("AMBOS") }
     var coloresFiltro by remember { mutableStateOf<Set<String>>(emptySet()) }
     var estadosFiltro by remember(initialEstado) { mutableStateOf<Set<EstadoInventario>>(defaultEstados) }
-    var rangosPesoFiltroIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var rangosPesoFiltroIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     var mostrarModalFiltros by remember { mutableStateOf(false) }
     var exportDialogVisible by remember { mutableStateOf(false) }
@@ -1661,11 +1661,11 @@ private fun GanadoFilterDialog(
     currentTipoArete: String,
     currentColores: Set<String>,
     currentEstados: Set<EstadoInventario>,
-    currentRangosPesoIds: Set<Long>,
+    currentRangosPesoIds: Set<String>,
     rangosDisponibles: List<RangoPeso>,
     availableYears: List<Int>,
     onDismiss: () -> Unit,
-    onApply: (FiltroFechas, String, Set<String>, Set<EstadoInventario>, Set<Long>) -> Unit
+    onApply: (FiltroFechas, String, Set<String>, Set<EstadoInventario>, Set<String>) -> Unit
 ) {
     // 1. Fecha
     var tipoConsulta by remember { mutableStateOf(if (currentFiltroFechas is FiltroFechas.Ultimo) "Ultimo" else "Especifico") }

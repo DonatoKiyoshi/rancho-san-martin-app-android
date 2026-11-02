@@ -1,11 +1,13 @@
 package com.rancho.gestion.data.repository
 
+import com.rancho.gestion.data.dao.SincronizacionDao
 import com.rancho.gestion.data.dao.UsuarioDao
+import com.rancho.gestion.data.entities.ColaSincronizacion
 import com.rancho.gestion.data.entities.Usuario
 import com.rancho.gestion.util.PasswordHasher
 import kotlinx.coroutines.flow.Flow
 
-class AuthRepository(private val usuarioDao: UsuarioDao) {
+class AuthRepository(private val usuarioDao: UsuarioDao, private val sincronizacionDao: SincronizacionDao) {
 
     suspend fun login(username: String, password: String): Usuario? {
         val userClean = username.trim().lowercase()
@@ -30,32 +32,75 @@ class AuthRepository(private val usuarioDao: UsuarioDao) {
 
     suspend fun cambiarContrasena(usuario: Usuario, actual: String, nueva: String): Boolean {
         if (!PasswordHasher.matches(actual.trim(), usuario.passwordHash)) return false
-        usuarioDao.update(usuario.copy(passwordHash = PasswordHasher.hash(nueva.trim())))
+        val updatedUsuario = usuario.copy(passwordHash = PasswordHasher.hash(nueva.trim()))
+        usuarioDao.update(updatedUsuario)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "usuarios",
+                idEntidad = updatedUsuario.idUsuario,
+                operacion = "UPDATE",
+                versionLocal = updatedUsuario.version,
+                idDispositivo = updatedUsuario.idUsuario
+            )
+        )
         return true
     }
 
     fun getUsuarios(): Flow<List<Usuario>> = usuarioDao.getAll()
 
-    suspend fun getUsuarioById(id: Long): Usuario? = usuarioDao.getById(id)
+    suspend fun getUsuarioById(id: String): Usuario? = usuarioDao.getById(id)
 
     suspend fun getUsuarioByUsername(username: String): Usuario? = usuarioDao.getByUsername(username.trim().lowercase())
 
     suspend fun registrarUsuario(usuario: Usuario) {
-        usuarioDao.insert(usuario.copy(
+        val userToInsert = usuario.copy(
             nombreUsuario = usuario.nombreUsuario.trim().lowercase(),
             passwordHash = PasswordHasher.hash(usuario.passwordHash)
-        ))
+        )
+        usuarioDao.insert(userToInsert)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "usuarios",
+                idEntidad = userToInsert.idUsuario,
+                operacion = "INSERT",
+                versionLocal = userToInsert.version,
+                idDispositivo = "sistema" // o puedes usar el admin id
+            )
+        )
     }
 
     suspend fun existeUsuario(username: String): Boolean = usuarioDao.getByUsername(username.trim().lowercase()) != null
 
     suspend fun actualizarUsuario(usuario: Usuario, passwordNueva: String?) {
         val hash = if (!passwordNueva.isNullOrBlank()) PasswordHasher.hash(passwordNueva) else usuario.passwordHash
-        usuarioDao.update(usuario.copy(passwordHash = hash))
+        val updatedUsuario = usuario.copy(passwordHash = hash)
+        usuarioDao.update(updatedUsuario)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "usuarios",
+                idEntidad = updatedUsuario.idUsuario,
+                operacion = "UPDATE",
+                versionLocal = updatedUsuario.version,
+                idDispositivo = updatedUsuario.idUsuario
+            )
+        )
     }
 
     suspend fun eliminarUsuario(usuario: Usuario) {
         usuarioDao.delete(usuario)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "usuarios",
+                idEntidad = usuario.idUsuario,
+                operacion = "DELETE",
+                versionLocal = usuario.version,
+                idDispositivo = "sistema"
+            )
+        )
     }
 
     suspend fun asegurarAdmin() {
@@ -66,26 +111,58 @@ class AuthRepository(private val usuarioDao: UsuarioDao) {
         val admins = todosLosUsuarios.filter { it.nombreUsuario.trim().lowercase() == "admin" }
         
         if (admins.isEmpty()) {
-            usuarioDao.insert(Usuario(
+            val adminUser = Usuario(
                 nombre = "Administrador",
                 nombreUsuario = "admin",
                 passwordHash = PasswordHasher.hash(nuevaContrasenaDefault),
                 rol = com.rancho.gestion.data.entities.Rol.ADMINISTRADOR
-            ))
+            )
+            usuarioDao.insert(adminUser)
+            
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "usuarios",
+                    idEntidad = adminUser.idUsuario,
+                    operacion = "INSERT",
+                    versionLocal = 1,
+                    idDispositivo = "sistema"
+                )
+            )
         } else {
             // Si ya existe, nos aseguramos de que tenga la contraseña correcta
             val adminPrincipal = admins.first()
             if (!PasswordHasher.matches(nuevaContrasenaDefault, adminPrincipal.passwordHash)) {
-                usuarioDao.update(adminPrincipal.copy(
+                val updatedAdmin = adminPrincipal.copy(
                     nombre = "Administrador",
                     nombreUsuario = "admin",
                     passwordHash = PasswordHasher.hash(nuevaContrasenaDefault),
                     rol = com.rancho.gestion.data.entities.Rol.ADMINISTRADOR
-                ))
+                )
+                usuarioDao.update(updatedAdmin)
+                sincronizacionDao.insert(
+                    ColaSincronizacion(
+                        entidad = "usuarios",
+                        idEntidad = updatedAdmin.idUsuario,
+                        operacion = "UPDATE",
+                        versionLocal = updatedAdmin.version,
+                        idDispositivo = "sistema"
+                    )
+                )
             }
             // Eliminar duplicados si los hubiera
             if (admins.size > 1) {
-                admins.drop(1).forEach { usuarioDao.delete(it) }
+                admins.drop(1).forEach { 
+                    usuarioDao.delete(it)
+                    sincronizacionDao.insert(
+                        ColaSincronizacion(
+                            entidad = "usuarios",
+                            idEntidad = it.idUsuario,
+                            operacion = "DELETE",
+                            versionLocal = it.version,
+                            idDispositivo = "sistema"
+                        )
+                    )
+                }
             }
         }
 

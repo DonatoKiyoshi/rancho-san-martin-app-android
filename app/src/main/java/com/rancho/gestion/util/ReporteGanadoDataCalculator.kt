@@ -24,7 +24,7 @@ data class EstadoStat(
 )
 
 data class RangoStat(
-    val idRangoPeso: Long?,
+    val idRangoPeso: String?,
     val nombreRango: String,
     val cantidad: Int,
     val porcentaje: Double

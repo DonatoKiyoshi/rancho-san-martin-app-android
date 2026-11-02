@@ -579,7 +579,8 @@ private fun AgregarAnimalesDialog(
                         ventaId = jaula.idVenta,
                         arete = animalParaPeso!!.numeroArete,
                         pesoSalida = pesoActual,
-                        montoCobro = montoCobro
+                        montoCobro = montoCobro,
+                        idUsuario = SessionManager.currentUserId()
                     )
                     if (resultado is ResultadoOperacion.Ok) {
                         animalParaPeso = null
@@ -1395,7 +1396,8 @@ private fun RegistrarYAgregarAnimalAJaulaDialog(
                                                 ventaId = jaula.idVenta,
                                                 arete = arete,
                                                 pesoSalida = nPesoD,
-                                                montoCobro = mCobroD
+                                                montoCobro = mCobroD,
+                                                idUsuario = SessionManager.currentUserId()
                                             )
 
                                             guardando = false

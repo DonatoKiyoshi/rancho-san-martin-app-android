@@ -7,13 +7,13 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface UsuarioDao {
     @Query("SELECT * FROM usuarios WHERE id_usuario = :id LIMIT 1")
-    suspend fun getById(id: Long): Usuario?
+    suspend fun getById(id: String): Usuario?
 
     @Query("SELECT * FROM usuarios WHERE nombre_usuario = :username LIMIT 1")
     suspend fun getByUsername(username: String): Usuario?
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    suspend fun insert(usuario: Usuario): Long
+    suspend fun insert(usuario: Usuario)
 
     @Update
     suspend fun update(usuario: Usuario)
@@ -70,7 +70,7 @@ interface RangoPesoDao {
     fun getAll(): Flow<List<RangoPeso>>
 
     @Insert
-    suspend fun insert(rango: RangoPeso): Long
+    suspend fun insert(rango: RangoPeso)
 
     @Delete
     suspend fun delete(rango: RangoPeso)
@@ -86,7 +86,7 @@ interface VentaDao {
     fun getAllDetalles(): Flow<List<DetalleVenta>>
 
     @Query("SELECT * FROM ventas WHERE id_venta = :id LIMIT 1")
-    suspend fun getVentaById(id: Long): Venta?
+    suspend fun getVentaById(id: String): Venta?
 
     @Query("SELECT * FROM ventas WHERE modalidad = 'JAULA' AND estado_aprobacion = 'PENDIENTE' AND finalizada = 0 ORDER BY fecha_creacion DESC")
     fun getJaulasAbiertas(): Flow<List<Venta>>
@@ -98,7 +98,7 @@ interface VentaDao {
     suspend fun getJaulaAbiertaDeAnimal(arete: String): Venta?
 
     @Query("SELECT id_venta FROM detalle_venta WHERE numero_arete = :arete")
-    suspend fun getIdsVentasDeAnimal(arete: String): List<Long>
+    suspend fun getIdsVentasDeAnimal(arete: String): List<String>
 
     @Query("SELECT * FROM ventas WHERE finalizada = 1 AND estado_aprobacion = 'PENDIENTE' ORDER BY fecha_actualizacion DESC")
     fun getVentasPendientes(): Flow<List<Venta>>
@@ -110,22 +110,22 @@ interface VentaDao {
     suspend fun eliminarVentasIndividualesPendientesDeAnimal(arete: String)
 
     @Insert
-    suspend fun insertVenta(venta: Venta): Long
+    suspend fun insertVenta(venta: Venta)
 
     @Insert
     suspend fun insertDetalle(detalle: DetalleVenta)
 
     @Query("DELETE FROM ventas WHERE id_venta = :ventaId")
-    suspend fun deleteVentaById(ventaId: Long): Int
+    suspend fun deleteVentaById(ventaId: String): Int
 
     @Query("DELETE FROM detalle_venta WHERE id_venta = :ventaId")
-    suspend fun deleteDetallesByVenta(ventaId: Long)
+    suspend fun deleteDetallesByVenta(ventaId: String)
 
     @Update
     suspend fun updateVenta(venta: Venta)
 
     @Query("SELECT * FROM detalle_venta WHERE id_venta = :ventaId")
-    fun getDetallesPorVenta(ventaId: Long): Flow<List<DetalleVenta>>
+    fun getDetallesPorVenta(ventaId: String): Flow<List<DetalleVenta>>
 
     @Delete
     suspend fun deleteDetalle(detalle: DetalleVenta)
@@ -134,7 +134,7 @@ interface VentaDao {
     suspend fun getDetalleVentaPorArete(arete: String): DetalleVenta?
 
     @Query("SELECT * FROM detalle_venta WHERE id_venta = :ventaId")
-    suspend fun getDetallesPorVentaOnce(ventaId: Long): List<DetalleVenta>
+    suspend fun getDetallesPorVentaOnce(ventaId: String): List<DetalleVenta>
 
     @Update
     suspend fun updateDetalleVenta(detalle: DetalleVenta)
@@ -143,13 +143,16 @@ interface VentaDao {
 @Dao
 interface EgresoDao {
     @Insert
-    suspend fun insert(egreso: Egreso): Long
+    suspend fun insert(egreso: Egreso)
 
     @Insert
     suspend fun insertNomina(nomina: NominaDetalle)
 
     @Delete
     suspend fun delete(egreso: Egreso)
+
+    @Query("SELECT * FROM egresos WHERE id_egreso = :id LIMIT 1")
+    suspend fun getEgresoById(id: String): Egreso?
 
     @Query("SELECT MIN(fecha_egreso) FROM egresos")
     fun getPrimeraFechaEgreso(): Flow<Long?>
@@ -170,19 +173,22 @@ interface EgresoDao {
 @Dao
 interface MortalidadDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(mortalidad: Mortalidad): Long
+    suspend fun insert(mortalidad: Mortalidad)
 
     @Query("SELECT * FROM mortalidad WHERE numero_arete = :arete AND estado_aprobacion = 'PENDIENTE' LIMIT 1")
     suspend fun getMortalidadPendienteDeAnimal(arete: String): Mortalidad?
+
+    @Query("SELECT * FROM mortalidad WHERE id_mortalidad = :id LIMIT 1")
+    suspend fun getMortalidadById(id: String): Mortalidad?
 
     @Query("DELETE FROM mortalidad WHERE numero_arete = :arete AND estado_aprobacion = 'PENDIENTE'")
     suspend fun eliminarMortalidadesPendientesDeAnimal(arete: String)
 
     @Query("DELETE FROM mortalidad WHERE numero_arete = :arete AND id_mortalidad != :idAprobado AND estado_aprobacion = 'PENDIENTE'")
-    suspend fun eliminarPendientesDeAnimal(arete: String, idAprobado: Long)
+    suspend fun eliminarPendientesDeAnimal(arete: String, idAprobado: String)
 
     @Query("DELETE FROM mortalidad WHERE id_mortalidad = :id")
-    suspend fun eliminarSolicitud(id: Long)
+    suspend fun eliminarSolicitud(id: String)
 
     @Query("SELECT * FROM mortalidad WHERE estado_aprobacion = 'PENDIENTE' ORDER BY fecha_baja DESC")
     fun getPendientes(): Flow<List<Mortalidad>>
@@ -212,19 +218,22 @@ interface ConfiguracionDao {
 @Dao
 interface SincronizacionDao {
     @Insert
-    suspend fun insert(cola: ColaSincronizacion): Long
+    suspend fun insert(cola: ColaSincronizacion)
 
     @Query("SELECT * FROM cola_sincronizacion WHERE estado = 'PENDIENTE' ORDER BY prioridad DESC, fecha_operacion ASC")
     suspend fun getPendientes(): List<ColaSincronizacion>
 
     @Update
     suspend fun update(cola: ColaSincronizacion)
+
+    @Query("DELETE FROM cola_sincronizacion WHERE estado = 'SINCRONIZADO' AND fecha_sincronizacion < :tiempoLimiteMs")
+    suspend fun limpiarCola(tiempoLimiteMs: Long)
 }
 
 @Dao
 interface AuditoriaDao {
     @Insert
-    suspend fun insert(auditoria: Auditoria): Long
+    suspend fun insert(auditoria: Auditoria)
 
     @Query("SELECT * FROM auditoria ORDER BY fecha_operacion DESC LIMIT 100")
     fun getRecientes(): Flow<List<Auditoria>>

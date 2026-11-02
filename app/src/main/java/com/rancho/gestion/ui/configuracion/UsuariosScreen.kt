@@ -323,7 +323,7 @@ private fun UsuarioCard(
             }
             
             Row {
-                if (usuario.idUsuario != 1L) {
+                if (usuario.idUsuario != "1") {
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, "Editar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

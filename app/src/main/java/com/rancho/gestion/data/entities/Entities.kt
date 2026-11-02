@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.util.UUID
 
 /* =======================================================================
  *  ENUMS DE NEGOCIO
@@ -36,7 +37,7 @@ enum class EstadoSincronizacion { PENDIENTE, ENVIANDO, SINCRONIZADO, ERROR }
 
 @Entity(tableName = "usuarios")
 data class Usuario(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_usuario") val idUsuario: Long = 0,
+    @PrimaryKey @ColumnInfo(name = "id_usuario") val idUsuario: String = UUID.randomUUID().toString(),
     val nombre: String,
     @ColumnInfo(name = "nombre_usuario") val nombreUsuario: String,
     @ColumnInfo(name = "password_hash") val passwordHash: String,
@@ -61,7 +62,7 @@ data class Animal(
     @ColumnInfo(name = "precio_compra") val precioCompra: Double,
     @ColumnInfo(name = "fecha_entrada") val fechaEntrada: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "peso_entrada") val pesoEntrada: Double,
-    @ColumnInfo(name = "id_rango_peso") val idRangoPeso: Long?,
+    @ColumnInfo(name = "id_rango_peso") val idRangoPeso: String?,
     val fase: FaseGanado = FaseGanado.ACOPIO,
     @ColumnInfo(name = "estado_inventario") val estadoInventario: EstadoInventario = EstadoInventario.ACTIVO,
     @ColumnInfo(name = "estado_aprobacion") val estadoAprobacion: EstadoAprobacion = EstadoAprobacion.PENDIENTE,
@@ -71,7 +72,7 @@ data class Animal(
     @ColumnInfo(name = "fotografia_cloud_key") val fotografiaCloudKey: String? = null,
     @ColumnInfo(name = "fotografia_local_disponible") val fotografiaLocalDisponible: Boolean = false,
     @ColumnInfo(name = "fecha_fotografia_purga") val fechaFotografiaPurga: Long? = null,
-    @ColumnInfo(name = "id_usuario_registro") val idUsuarioRegistro: Long,
+    @ColumnInfo(name = "id_usuario_registro") val idUsuarioRegistro: String,
     @ColumnInfo(name = "fecha_creacion") val fechaCreacion: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "fecha_actualizacion") val fechaActualizacion: Long = System.currentTimeMillis(),
     val version: Int = 1
@@ -79,7 +80,7 @@ data class Animal(
 
 @Entity(tableName = "rangos_peso")
 data class RangoPeso(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_rango_peso") val idRangoPeso: Long = 0,
+    @PrimaryKey @ColumnInfo(name = "id_rango_peso") val idRangoPeso: String = UUID.randomUUID().toString(),
     @ColumnInfo(name = "limite_inferior") val limiteInferior: Double,
     @ColumnInfo(name = "limite_superior") val limiteSuperior: Double,
     @ColumnInfo(name = "nombre_rango") val nombreRango: String,
@@ -91,7 +92,7 @@ data class RangoPeso(
 
 @Entity(tableName = "ventas")
 data class Venta(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_venta") val idVenta: Long = 0,
+    @PrimaryKey @ColumnInfo(name = "id_venta") val idVenta: String = UUID.randomUUID().toString(),
     @ColumnInfo(name = "fecha_venta") val fechaVenta: Long = System.currentTimeMillis(),
     val comprador: String,
     val modalidad: ModalidadVenta,
@@ -99,8 +100,8 @@ data class Venta(
     @ColumnInfo(name = "total_cabezas") val totalCabezas: Int,
     @ColumnInfo(name = "peso_total") val pesoTotal: Double,
     @ColumnInfo(name = "estado_aprobacion") val estadoAprobacion: EstadoAprobacion = EstadoAprobacion.PENDIENTE,
-    @ColumnInfo(name = "id_usuario_registro") val idUsuarioRegistro: Long,
-    @ColumnInfo(name = "id_usuario_aprobacion") val idUsuarioAprobacion: Long? = null,
+    @ColumnInfo(name = "id_usuario_registro") val idUsuarioRegistro: String,
+    @ColumnInfo(name = "id_usuario_aprobacion") val idUsuarioAprobacion: String? = null,
     @ColumnInfo(name = "fecha_aprobacion") val fechaAprobacion: Long? = null,
     @ColumnInfo(name = "fecha_creacion") val fechaCreacion: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "fecha_actualizacion") val fechaActualizacion: Long = System.currentTimeMillis(),
@@ -121,8 +122,8 @@ data class Venta(
     indices = [Index("id_venta"), Index("numero_arete")]
 )
 data class DetalleVenta(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_detalle_venta") val idDetalleVenta: Long = 0,
-    @ColumnInfo(name = "id_venta") val idVenta: Long,
+    @PrimaryKey @ColumnInfo(name = "id_detalle_venta") val idDetalleVenta: String = UUID.randomUUID().toString(),
+    @ColumnInfo(name = "id_venta") val idVenta: String,
     @ColumnInfo(name = "numero_arete") val numeroArete: String,
     @ColumnInfo(name = "peso_salida") val pesoSalida: Double,
     @ColumnInfo(name = "precio_unitario") val precioUnitario: Double,
@@ -132,12 +133,12 @@ data class DetalleVenta(
 
 @Entity(tableName = "egresos")
 data class Egreso(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_egreso") val idEgreso: Long = 0,
+    @PrimaryKey @ColumnInfo(name = "id_egreso") val idEgreso: String = UUID.randomUUID().toString(),
     @ColumnInfo(name = "fecha_egreso") val fechaEgreso: Long = System.currentTimeMillis(),
     val categoria: CategoriaEgreso,
     val descripcion: String,
     @ColumnInfo(name = "monto_total") val montoTotal: Double,
-    @ColumnInfo(name = "id_usuario") val idUsuario: Long,
+    @ColumnInfo(name = "id_usuario") val idUsuario: String,
     @ColumnInfo(name = "fecha_creacion") val fechaCreacion: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "fecha_actualizacion") val fechaActualizacion: Long = System.currentTimeMillis(),
     val version: Int = 1
@@ -156,8 +157,8 @@ data class Egreso(
     indices = [Index("id_egreso")]
 )
 data class NominaDetalle(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_nomina") val idNomina: Long = 0,
-    @ColumnInfo(name = "id_egreso") val idEgreso: Long,
+    @PrimaryKey @ColumnInfo(name = "id_nomina") val idNomina: String = UUID.randomUUID().toString(),
+    @ColumnInfo(name = "id_egreso") val idEgreso: String,
     @ColumnInfo(name = "nombre_empleado") val nombreEmpleado: String,
     @ColumnInfo(name = "dias_trabajados") val diasTrabajados: Int,
     @ColumnInfo(name = "fecha_creacion") val fechaCreacion: Long = System.currentTimeMillis()
@@ -165,7 +166,7 @@ data class NominaDetalle(
 
 @Entity(tableName = "mortalidad")
 data class Mortalidad(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_mortalidad") val idMortalidad: Long = 0,
+    @PrimaryKey @ColumnInfo(name = "id_mortalidad") val idMortalidad: String = UUID.randomUUID().toString(),
     @ColumnInfo(name = "numero_arete") val numeroArete: String,
     @ColumnInfo(name = "fecha_baja") val fechaBaja: Long = System.currentTimeMillis(),
     val causa: String,
@@ -173,8 +174,8 @@ data class Mortalidad(
     val recuperacion: Double,
     @ColumnInfo(name = "merma_economica") val mermaEconomica: Double,
     @ColumnInfo(name = "estado_aprobacion") val estadoAprobacion: EstadoAprobacion = EstadoAprobacion.PENDIENTE,
-    @ColumnInfo(name = "id_usuario_registro") val idUsuarioRegistro: Long,
-    @ColumnInfo(name = "id_usuario_aprobacion") val idUsuarioAprobacion: Long? = null,
+    @ColumnInfo(name = "id_usuario_registro") val idUsuarioRegistro: String,
+    @ColumnInfo(name = "id_usuario_aprobacion") val idUsuarioAprobacion: String? = null,
     @ColumnInfo(name = "fecha_aprobacion") val fechaAprobacion: Long? = null,
     @ColumnInfo(name = "fecha_creacion") val fechaCreacion: Long = System.currentTimeMillis(),
     val version: Int = 1
@@ -182,7 +183,7 @@ data class Mortalidad(
 
 @Entity(tableName = "imagenes_animal", indices = [Index("numero_arete")])
 data class ImagenAnimal(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_imagen") val idImagen: Long = 0,
+    @PrimaryKey @ColumnInfo(name = "id_imagen") val idImagen: String = UUID.randomUUID().toString(),
     @ColumnInfo(name = "numero_arete") val numeroArete: String,
     @ColumnInfo(name = "ruta_local") val rutaLocal: String,
     @ColumnInfo(name = "cloud_key") val cloudKey: String? = null,
@@ -200,19 +201,19 @@ data class ImagenAnimal(
 
 @Entity(tableName = "notificaciones_estancia", indices = [Index("numero_arete"), Index("id_usuario")])
 data class NotificacionEstancia(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_notificacion") val idNotificacion: Long = 0,
+    @PrimaryKey @ColumnInfo(name = "id_notificacion") val idNotificacion: String = UUID.randomUUID().toString(),
     @ColumnInfo(name = "numero_arete") val numeroArete: String,
     @ColumnInfo(name = "dias_estancia") val diasEstancia: Int,
     @ColumnInfo(name = "tipo_alerta") val tipoAlerta: String,
     @ColumnInfo(name = "fecha_generacion") val fechaGeneracion: Long = System.currentTimeMillis(),
     @ColumnInfo(name = "fecha_lectura") val fechaLectura: Long? = null,
     val leida: Boolean = false,
-    @ColumnInfo(name = "id_usuario") val idUsuario: Long // Admin destinatario
+    @ColumnInfo(name = "id_usuario") val idUsuario: String // Admin destinatario
 )
 
 @Entity(tableName = "cola_sincronizacion", indices = [Index("estado")])
 data class ColaSincronizacion(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_sincronizacion") val idSincronizacion: Long = 0,
+    @PrimaryKey @ColumnInfo(name = "id_sincronizacion") val idSincronizacion: String = UUID.randomUUID().toString(),
     val entidad: String,
     @ColumnInfo(name = "id_entidad") val idEntidad: String,
     val operacion: String, // INSERT, UPDATE, DELETE
@@ -229,7 +230,7 @@ data class ColaSincronizacion(
 @Entity(tableName = "dispositivos")
 data class Dispositivo(
     @PrimaryKey @ColumnInfo(name = "id_dispositivo") val idDispositivo: String,
-    @ColumnInfo(name = "id_usuario") val idUsuario: Long,
+    @ColumnInfo(name = "id_usuario") val idUsuario: String,
     @ColumnInfo(name = "nombre_dispositivo") val nombreDispositivo: String,
     val plataforma: String = "Android",
     @ColumnInfo(name = "version_app") val versionApp: String,
@@ -240,8 +241,8 @@ data class Dispositivo(
 
 @Entity(tableName = "auditoria", indices = [Index("id_usuario"), Index("entidad")])
 data class Auditoria(
-    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id_auditoria") val idAuditoria: Long = 0,
-    @ColumnInfo(name = "id_usuario") val idUsuario: Long,
+    @PrimaryKey @ColumnInfo(name = "id_auditoria") val idAuditoria: String = UUID.randomUUID().toString(),
+    @ColumnInfo(name = "id_usuario") val idUsuario: String,
     val entidad: String,
     @ColumnInfo(name = "id_entidad") val idEntidad: String,
     val accion: String,
@@ -258,5 +259,5 @@ data class Configuracion(
     @ColumnInfo(name = "tipo_dato") val tipoDato: String,
     val descripcion: String,
     @ColumnInfo(name = "fecha_actualizacion") val fechaActualizacion: Long = System.currentTimeMillis(),
-    @ColumnInfo(name = "id_usuario_actualizacion") val idUsuarioActualizacion: Long
+    @ColumnInfo(name = "id_usuario_actualizacion") val idUsuarioActualizacion: String
 )

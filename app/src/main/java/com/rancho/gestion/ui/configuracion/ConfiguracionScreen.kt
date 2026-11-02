@@ -78,7 +78,7 @@ fun ConfiguracionScreen(
     ConfiguracionContent(
         rangos = rangos,
         isAdmin = isAdmin,
-        idUsuarioActual = usuario?.idUsuario ?: -1L,
+        idUsuarioActual = usuario?.idUsuario ?: "",
         biometricAvailable = biometricAvailable,
         biometricEnabled = biometricEnabled,
         currentThemeMode = currentThemeMode,
@@ -173,7 +173,7 @@ fun ConfiguracionScreen(
 private fun ConfiguracionContent(
     rangos: List<RangoPeso>,
     isAdmin: Boolean,
-    idUsuarioActual: Long,
+    idUsuarioActual: String,
     biometricAvailable: Boolean,
     biometricEnabled: Boolean,
     currentThemeMode: AppThemeMode,
@@ -530,7 +530,7 @@ private fun ConfiguracionContent(
                 Spacer(Modifier.height(16.dp))
             }
 
-            if (idUsuarioActual != 1L) {
+            if (idUsuarioActual != "1") {
                 // 5. SECCIÓN: Cambiar Contraseña
                 MenuOptionCard(
                     label = "Cambiar Contraseña",
@@ -685,10 +685,10 @@ fun ConfiguracionPreview() {
     MaterialTheme {
         ConfiguracionContent(
             rangos = listOf(
-                RangoPeso(idRangoPeso = 1, limiteInferior = 130.0, limiteSuperior = 220.0, nombreRango = "Becerro")
+                RangoPeso(idRangoPeso = "1", limiteInferior = 130.0, limiteSuperior = 220.0, nombreRango = "Becerro")
             ),
             isAdmin = true,
-            idUsuarioActual = 1L,
+            idUsuarioActual = "1",
             biometricAvailable = true,
             biometricEnabled = true,
             currentThemeMode = AppThemeMode.CLARO,

@@ -450,10 +450,10 @@ fun DetalleAprobacionAnimalPreview() {
         precioCompra = 15000.0,
         proveedor = "Rancho San Martín",
         idRangoPeso = null,
-        idUsuarioRegistro = 1
+        idUsuarioRegistro = "1"
     )
     val dummyUsuario = Usuario(
-        idUsuario = 1,
+        idUsuario = "1",
         nombre = "Juan Pérez",
         nombreUsuario = "juanp",
         passwordHash = "",

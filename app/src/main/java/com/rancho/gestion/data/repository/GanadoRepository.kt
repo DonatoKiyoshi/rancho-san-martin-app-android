@@ -1,8 +1,12 @@
 package com.rancho.gestion.data.repository
 
+import android.content.Context
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.rancho.gestion.data.dao.AnimalDao
 import com.rancho.gestion.data.dao.MortalidadDao
 import com.rancho.gestion.data.dao.RangoPesoDao
+import com.rancho.gestion.data.dao.SincronizacionDao
 import com.rancho.gestion.data.entities.*
 import kotlinx.coroutines.flow.Flow
 
@@ -12,9 +16,11 @@ sealed class ResultadoOperacion {
 }
 
 class GanadoRepository(
+    private val context: Context,
     private val animalDao: AnimalDao,
     private val rangoPesoDao: RangoPesoDao,
-    private val mortalidadDao: MortalidadDao
+    private val mortalidadDao: MortalidadDao,
+    private val sincronizacionDao: SincronizacionDao
 ) {
     /* ---------- Consultas reactivas ---------- */
     fun activos(): Flow<List<Animal>> = animalDao.getActivos()
@@ -39,24 +45,24 @@ class GanadoRepository(
         precioCompra: Double,
         proveedor: String,
         fotografiaLocal: String?,
-        idUsuario: Long,
+        idUsuario: String,
         esAdmin: Boolean
-    ): ResultadoOperacion {
+    ): ResultadoOperacion = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         // Validaciones según Tipo de Arete
         if (tipoArete == TipoArete.SADER) {
-            if (!arete.startsWith("484")) return ResultadoOperacion.Error("El arete SADER debe comenzar con el prefijo 484")
-            if (arete.length != 15) return ResultadoOperacion.Error("El arete SADER debe tener exactamente 15 dígitos")
+            if (!arete.startsWith("484")) return@withContext ResultadoOperacion.Error("El arete SADER debe comenzar con el prefijo 484")
+            if (arete.length != 15) return@withContext ResultadoOperacion.Error("El arete SADER debe tener exactamente 15 dígitos")
         } else {
-            if (arete.length > 6) return ResultadoOperacion.Error("El arete GENÉRICO no puede tener más de 6 dígitos")
-            if (arete.isEmpty()) return ResultadoOperacion.Error("El arete es obligatorio")
+            if (arete.length > 6) return@withContext ResultadoOperacion.Error("El arete GENÉRICO no puede tener más de 6 dígitos")
+            if (arete.isEmpty()) return@withContext ResultadoOperacion.Error("El arete es obligatorio")
         }
         
-        if (arete.any { !it.isDigit() }) return ResultadoOperacion.Error("El arete debe ser estrictamente numérico")
+        if (arete.any { !it.isDigit() }) return@withContext ResultadoOperacion.Error("El arete debe ser estrictamente numérico")
         
         // Regla: Si ya existe (Aprobado o Pendiente), avisar
         val existente = animalDao.getByArete(arete)
         if (existente != null) {
-            return if (existente.estadoAprobacion == EstadoAprobacion.PENDIENTE) {
+            return@withContext if (existente.estadoAprobacion == EstadoAprobacion.PENDIENTE) {
                 ResultadoOperacion.Error("La operación de entrada ya fue realizada y está pendiente a revisar por un administrador.")
             } else {
                 ResultadoOperacion.Error("Ya existe un animal registrado con ese arete.")
@@ -80,30 +86,73 @@ class GanadoRepository(
             fotografiaLocal = fotografiaLocal,
             fotografiaLocalDisponible = fotografiaLocal != null
         )
-        android.util.Log.wtf("GanadoRepository", "ALTA ANIMAL: arete=${animal.numeroArete}, fase=${animal.fase}, fecha=${animal.fechaEntrada}")
         
         animalDao.insert(animal)
-        return ResultadoOperacion.Ok
+        
+        // --- OFFLINE-FIRST: Poner aviso en la cola de sincronización ---
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "ganado",
+                idEntidad = animal.numeroArete,
+                operacion = "INSERT",
+                versionLocal = animal.version,
+                idDispositivo = idUsuario // Usamos el ID del usuario como referencia temporal
+            )
+        )
+        
+        // --- DESPERTAR AL WORKER INMEDIATAMENTE ---
+        val syncRequest = OneTimeWorkRequestBuilder<com.rancho.gestion.data.sync.SyncWorker>().build()
+        WorkManager.getInstance(context).enqueue(syncRequest)
+        
+        ResultadoOperacion.Ok
     }
 
     /* ---------- Aprobación de Animales (PROC-11) ---------- */
-    suspend fun aprobarAnimal(animal: Animal, idAdmin: Long): ResultadoOperacion {
-        // Al aprobar un animal, si hubiera otras solicitudes para el mismo arete (no debería por PK, pero por lógica de negocio)
-        // se toman en cuenta. Como numeroArete es PK, no hay duplicados en la tabla 'ganado'.
-        
-        animalDao.update(animal.copy(
+    suspend fun aprobarAnimal(animal: Animal, idAdmin: String): ResultadoOperacion {
+        val updatedAnimal = animal.copy(
             estadoAprobacion = EstadoAprobacion.APROBADO,
             fechaActualizacion = System.currentTimeMillis()
-        ))
+        )
+        animalDao.update(updatedAnimal)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "ganado",
+                idEntidad = updatedAnimal.numeroArete,
+                operacion = "UPDATE",
+                versionLocal = updatedAnimal.version,
+                idDispositivo = idAdmin
+            )
+        )
         return ResultadoOperacion.Ok
     }
 
     suspend fun rechazarAnimal(animal: Animal) {
         animalDao.delete(animal)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "ganado",
+                idEntidad = animal.numeroArete,
+                operacion = "DELETE",
+                versionLocal = animal.version,
+                idDispositivo = animal.idUsuarioRegistro
+            )
+        )
     }
 
     suspend fun rechazarMortalidad(mortalidad: Mortalidad): Unit = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         mortalidadDao.eliminarSolicitud(mortalidad.idMortalidad)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "mortalidad",
+                idEntidad = mortalidad.idMortalidad,
+                operacion = "DELETE",
+                versionLocal = mortalidad.version,
+                idDispositivo = mortalidad.idUsuarioRegistro
+            )
+        )
     }
 
     /* ---------- Registrar Muerte (CU-04) ---------- */
@@ -111,7 +160,7 @@ class GanadoRepository(
         arete: String, 
         motivo: String, 
         recuperacion: Double,
-        idUsuario: Long,
+        idUsuario: String,
         esAdmin: Boolean
     ): ResultadoOperacion = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val animal = animalDao.getByArete(arete) ?: return@withContext ResultadoOperacion.Error("Animal no encontrado")
@@ -129,8 +178,7 @@ class GanadoRepository(
         
         val merma = (animal.precioCompra - recuperacion).coerceAtLeast(0.0)
         
-        mortalidadDao.insert(
-            Mortalidad(
+        val nuevaMortalidad = Mortalidad(
                 numeroArete = arete,
                 causa = motivo,
                 costoInicial = animal.precioCompra,
@@ -139,43 +187,86 @@ class GanadoRepository(
                 estadoAprobacion = if (esAdmin) EstadoAprobacion.APROBADO else EstadoAprobacion.PENDIENTE,
                 idUsuarioRegistro = idUsuario
             )
+        mortalidadDao.insert(nuevaMortalidad)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "mortalidad",
+                idEntidad = nuevaMortalidad.idMortalidad,
+                operacion = "INSERT",
+                versionLocal = nuevaMortalidad.version,
+                idDispositivo = idUsuario
+            )
         )
         
         // Si es Admin, procesamos la baja de inmediato
         if (esAdmin) {
-            animalDao.update(animal.copy(
+            val updatedAnimal = animal.copy(
                 estadoInventario = EstadoInventario.MUERTO,
                 fechaBaja = System.currentTimeMillis(),
                 tipoBaja = TipoBaja.MORTALIDAD,
                 fechaActualizacion = System.currentTimeMillis()
-            ))
+            )
+            animalDao.update(updatedAnimal)
+            
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "ganado",
+                    idEntidad = updatedAnimal.numeroArete,
+                    operacion = "UPDATE",
+                    versionLocal = updatedAnimal.version,
+                    idDispositivo = idUsuario
+                )
+            )
         }
         
         ResultadoOperacion.Ok
     }
 
     /* ---------- Aprobación de Bajas (Mortalidad) ---------- */
-    suspend fun aprobarMortalidad(mortalidad: Mortalidad, idAdmin: Long): ResultadoOperacion {
+    suspend fun aprobarMortalidad(mortalidad: Mortalidad, idAdmin: String): ResultadoOperacion {
         val animal = animalDao.getByArete(mortalidad.numeroArete) ?: return ResultadoOperacion.Error("Animal no encontrado")
         
         // 1. Marcar esta solicitud como aprobada
-        mortalidadDao.insert(mortalidad.copy(
+        val updatedMortalidad = mortalidad.copy(
             idMortalidad = mortalidad.idMortalidad, // Asegurar mismo ID para update
             estadoAprobacion = EstadoAprobacion.APROBADO,
             idUsuarioAprobacion = idAdmin,
             fechaAprobacion = System.currentTimeMillis()
-        ))
+        )
+        mortalidadDao.insert(updatedMortalidad)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "mortalidad",
+                idEntidad = updatedMortalidad.idMortalidad,
+                operacion = "UPDATE",
+                versionLocal = updatedMortalidad.version,
+                idDispositivo = idAdmin
+            )
+        )
 
         // 2. Regla: Eliminar otras solicitudes pendientes del mismo animal
         mortalidadDao.eliminarPendientesDeAnimal(mortalidad.numeroArete, mortalidad.idMortalidad)
 
         // 3. Procesar la baja real en el inventario
-        animalDao.update(animal.copy(
+        val updatedAnimal = animal.copy(
             estadoInventario = EstadoInventario.MUERTO,
             fechaBaja = System.currentTimeMillis(),
             tipoBaja = TipoBaja.MORTALIDAD,
             fechaActualizacion = System.currentTimeMillis()
-        ))
+        )
+        animalDao.update(updatedAnimal)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "ganado",
+                idEntidad = updatedAnimal.numeroArete,
+                operacion = "UPDATE",
+                versionLocal = updatedAnimal.version,
+                idDispositivo = idAdmin
+            )
+        )
 
         return ResultadoOperacion.Ok
     }
@@ -184,20 +275,54 @@ class GanadoRepository(
     suspend fun editarAnimal(animal: Animal, esAdmin: Boolean): ResultadoOperacion {
         if (!esAdmin) return ResultadoOperacion.Error("Solo el administrador puede editar registros consolidados")
         
-        animalDao.update(animal.copy(fechaActualizacion = System.currentTimeMillis()))
+        val updatedAnimal = animal.copy(fechaActualizacion = System.currentTimeMillis())
+        animalDao.update(updatedAnimal)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "ganado",
+                idEntidad = updatedAnimal.numeroArete,
+                operacion = "UPDATE",
+                versionLocal = updatedAnimal.version,
+                idDispositivo = updatedAnimal.idUsuarioRegistro
+            )
+        )
         return ResultadoOperacion.Ok
     }
 
-    suspend fun eliminarAnimal(animal: Animal) = animalDao.delete(animal)
+    suspend fun eliminarAnimal(animal: Animal) {
+        animalDao.delete(animal)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "ganado",
+                idEntidad = animal.numeroArete,
+                operacion = "DELETE",
+                versionLocal = animal.version,
+                idDispositivo = animal.idUsuarioRegistro
+            )
+        )
+    }
 
     suspend fun actualizarFoto(arete: String, path: String?) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val animal = animalDao.getByArete(arete)
         if (animal != null) {
-            animalDao.update(animal.copy(
+            val updatedAnimal = animal.copy(
                 fotografiaLocal = path,
                 fotografiaLocalDisponible = path != null,
                 fechaActualizacion = System.currentTimeMillis()
-            ))
+            )
+            animalDao.update(updatedAnimal)
+            
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "ganado",
+                    idEntidad = updatedAnimal.numeroArete,
+                    operacion = "UPDATE",
+                    versionLocal = updatedAnimal.version,
+                    idDispositivo = updatedAnimal.idUsuarioRegistro
+                )
+            )
         }
     }
 
@@ -207,12 +332,33 @@ class GanadoRepository(
 
     suspend fun actualizarMortalidad(mortalidad: Mortalidad): ResultadoOperacion = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         mortalidadDao.updateMortalidad(mortalidad)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "mortalidad",
+                idEntidad = mortalidad.idMortalidad,
+                operacion = "UPDATE",
+                versionLocal = mortalidad.version,
+                idDispositivo = mortalidad.idUsuarioRegistro
+            )
+        )
         ResultadoOperacion.Ok
     }
 
     suspend fun cambiarFase(arete: String, nuevaFase: FaseGanado): ResultadoOperacion {
         val animal = animalDao.getByArete(arete) ?: return ResultadoOperacion.Error("Animal no encontrado")
-        animalDao.update(animal.copy(fase = nuevaFase, fechaActualizacion = System.currentTimeMillis()))
+        val updatedAnimal = animal.copy(fase = nuevaFase, fechaActualizacion = System.currentTimeMillis())
+        animalDao.update(updatedAnimal)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "ganado",
+                idEntidad = updatedAnimal.numeroArete,
+                operacion = "UPDATE",
+                versionLocal = updatedAnimal.version,
+                idDispositivo = updatedAnimal.idUsuarioRegistro
+            )
+        )
         return ResultadoOperacion.Ok
     }
 }

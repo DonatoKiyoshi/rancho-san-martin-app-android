@@ -1,14 +1,16 @@
 package com.rancho.gestion.data.repository
 
 import com.rancho.gestion.data.dao.EgresoDao
+import com.rancho.gestion.data.dao.SincronizacionDao
 import com.rancho.gestion.data.entities.CategoriaEgreso
+import com.rancho.gestion.data.entities.ColaSincronizacion
 import com.rancho.gestion.data.entities.Egreso
 import com.rancho.gestion.data.entities.NominaDetalle
 import com.rancho.gestion.util.DateUtils
 import kotlinx.coroutines.flow.Flow
 import java.util.Calendar
 
-class FinanzasRepository(private val egresoDao: EgresoDao) {
+class FinanzasRepository(private val egresoDao: EgresoDao, private val sincronizacionDao: SincronizacionDao) {
 
     fun porRango(desde: Long, hasta: Long): Flow<List<Egreso>> = egresoDao.getEgresosPorRango(desde, hasta)
     
@@ -25,7 +27,7 @@ class FinanzasRepository(private val egresoDao: EgresoDao) {
         categoria: CategoriaEgreso,
         monto: Double,
         descripcion: String,
-        idUsuario: Long,
+        idUsuario: String,
         empleadoNombre: String? = null,
         diasTrabajados: Int? = null
     ): ResultadoOperacion {
@@ -38,14 +40,32 @@ class FinanzasRepository(private val egresoDao: EgresoDao) {
             idUsuario = idUsuario
         )
         
-        val idEgreso = egresoDao.insert(egreso)
+        egresoDao.insert(egreso)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "egresos",
+                idEntidad = egreso.idEgreso,
+                operacion = "INSERT",
+                versionLocal = egreso.version,
+                idDispositivo = idUsuario
+            )
+        )
         
         if (categoria == CategoriaEgreso.NOMINA && empleadoNombre != null && diasTrabajados != null) {
-            egresoDao.insertNomina(
-                NominaDetalle(
-                    idEgreso = idEgreso,
+            val nomina = NominaDetalle(
+                    idEgreso = egreso.idEgreso,
                     nombreEmpleado = empleadoNombre,
                     diasTrabajados = diasTrabajados
+                )
+            egresoDao.insertNomina(nomina)
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "nomina",
+                    idEntidad = nomina.idNomina,
+                    operacion = "INSERT",
+                    versionLocal = 1,
+                    idDispositivo = idUsuario
                 )
             )
         }
@@ -56,6 +76,15 @@ class FinanzasRepository(private val egresoDao: EgresoDao) {
     suspend fun eliminarEgreso(egreso: Egreso): ResultadoOperacion {
         return try {
             egresoDao.delete(egreso)
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "egresos",
+                    idEntidad = egreso.idEgreso,
+                    operacion = "DELETE",
+                    versionLocal = egreso.version,
+                    idDispositivo = egreso.idUsuario
+                )
+            )
             ResultadoOperacion.Ok
         } catch (e: Exception) {
             ResultadoOperacion.Error("Error al eliminar egreso: ${e.message}")

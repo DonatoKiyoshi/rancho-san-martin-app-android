@@ -16,5 +16,5 @@ object SessionManager {
     fun isAdmin(): Boolean = _usuarioActual.value?.rol == Rol.ADMINISTRADOR
     fun isLoggedIn(): Boolean = _usuarioActual.value != null
     fun currentUsername(): String = _usuarioActual.value?.nombreUsuario ?: ""
-    fun currentUserId(): Long = _usuarioActual.value?.idUsuario ?: 0
+    fun currentUserId(): String = _usuarioActual.value?.idUsuario ?: ""
 }

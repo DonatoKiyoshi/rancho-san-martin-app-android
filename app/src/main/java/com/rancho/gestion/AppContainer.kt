@@ -13,26 +13,31 @@ class AppContainer(context: Context) {
     val biometricAuthManager = BiometricAuthManager(context)
     val themeManager = ThemeManager(context)
 
-    val authRepository = AuthRepository(database.usuarioDao())
+    val authRepository = AuthRepository(database.usuarioDao(), database.sincronizacionDao())
     
     val ganadoRepository = GanadoRepository(
+        context = context,
         animalDao = database.animalDao(),
         rangoPesoDao = database.rangoPesoDao(),
-        mortalidadDao = database.mortalidadDao()
+        mortalidadDao = database.mortalidadDao(),
+        sincronizacionDao = database.sincronizacionDao()
     )
     
     val finanzasRepository = FinanzasRepository(
-        egresoDao = database.egresoDao()
+        egresoDao = database.egresoDao(),
+        sincronizacionDao = database.sincronizacionDao()
     )
     
     val ventaRepository = VentaRepository(
         ventaDao = database.ventaDao(),
         animalDao = database.animalDao(),
-        mortalidadDao = database.mortalidadDao()
+        mortalidadDao = database.mortalidadDao(),
+        sincronizacionDao = database.sincronizacionDao()
     )
     
     val configuracionRepository = ConfiguracionRepository(
         rangoPesoDao = database.rangoPesoDao(),
-        configuracionDao = database.configuracionDao()
+        configuracionDao = database.configuracionDao(),
+        sincronizacionDao = database.sincronizacionDao()
     )
 }

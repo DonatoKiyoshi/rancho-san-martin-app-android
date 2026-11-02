@@ -2,6 +2,7 @@ package com.rancho.gestion.data.repository
 
 import com.rancho.gestion.data.dao.AnimalDao
 import com.rancho.gestion.data.dao.MortalidadDao
+import com.rancho.gestion.data.dao.SincronizacionDao
 import com.rancho.gestion.data.dao.VentaDao
 import com.rancho.gestion.data.entities.*
 import kotlinx.coroutines.flow.Flow
@@ -11,16 +12,17 @@ import kotlinx.coroutines.sync.withLock
 class VentaRepository(
     private val ventaDao: VentaDao,
     private val animalDao: AnimalDao,
-    private val mortalidadDao: MortalidadDao
+    private val mortalidadDao: MortalidadDao,
+    private val sincronizacionDao: SincronizacionDao
 ) {
     fun getVentas(): Flow<List<Venta>> = ventaDao.getAllVentas()
     fun getTodosLosDetalles(): Flow<List<DetalleVenta>> = ventaDao.getAllDetalles()
     fun getJaulasAbiertas(): Flow<List<Venta>> = ventaDao.getJaulasAbiertas()
-    fun getDetalles(ventaId: Long): Flow<List<DetalleVenta>> = ventaDao.getDetallesPorVenta(ventaId)
+    fun getDetalles(ventaId: String): Flow<List<DetalleVenta>> = ventaDao.getDetallesPorVenta(ventaId)
     fun getCandidatos(): Flow<List<Animal>> = animalDao.getActivosDisponibles()
 
     /* ---------- Crear Jaula / Lote ---------- */
-    suspend fun crearJaula(comprador: String, idUsuario: Long): Long {
+    suspend fun crearJaula(comprador: String, idUsuario: String): String {
         val venta = Venta(
             comprador = comprador,
             modalidad = ModalidadVenta.JAULA,
@@ -31,7 +33,18 @@ class VentaRepository(
             idUsuarioRegistro = idUsuario,
             finalizada = false
         )
-        return ventaDao.insertVenta(venta)
+        ventaDao.insertVenta(venta)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "ventas",
+                idEntidad = venta.idVenta,
+                operacion = "INSERT",
+                versionLocal = venta.version,
+                idDispositivo = idUsuario
+            )
+        )
+        return venta.idVenta
     }
 
     /* ---------- Venta Individual (Transacción robusta) ---------- */
@@ -40,7 +53,7 @@ class VentaRepository(
         comprador: String,
         pesoSalida: Double,
         montoCobro: Double,
-        idUsuario: Long,
+        idUsuario: String,
         esAdmin: Boolean,
         confirmarRemoverDeJaula: Boolean = false
     ): ResultadoOperacion = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -76,7 +89,7 @@ class VentaRepository(
             }
 
             // 1. Crear el encabezado de venta marcado como INDIVIDUAL
-            val ventaId = ventaDao.insertVenta(Venta(
+            val venta = Venta(
                 comprador = comprador.trim(),
                 modalidad = ModalidadVenta.INDIVIDUAL,
                 montoTotal = montoCobro,
@@ -87,25 +100,58 @@ class VentaRepository(
                 finalizada = true, // Las individuales nacen finalizadas
                 idUsuarioAprobacion = if (esAdmin) idUsuario else null,
                 fechaAprobacion = if (esAdmin) System.currentTimeMillis() else null
-            ))
+            )
+            ventaDao.insertVenta(venta)
+            
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "ventas",
+                    idEntidad = venta.idVenta,
+                    operacion = "INSERT",
+                    versionLocal = venta.version,
+                    idDispositivo = idUsuario
+                )
+            )
 
             // 2. Insertar detalle
-            ventaDao.insertDetalle(DetalleVenta(
-                idVenta = ventaId,
+            val detalle = DetalleVenta(
+                idVenta = venta.idVenta,
                 numeroArete = arete.trim(),
                 pesoSalida = pesoSalida,
                 precioUnitario = if (pesoSalida > 0) montoCobro / pesoSalida else 0.0,
                 subtotal = montoCobro
-            ))
+            )
+            ventaDao.insertDetalle(detalle)
+            
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "detalle_venta",
+                    idEntidad = detalle.idDetalleVenta,
+                    operacion = "INSERT",
+                    versionLocal = 1,
+                    idDispositivo = idUsuario
+                )
+            )
 
             // 3. Solo si es admin, se descuenta del inventario ahora mismo
             if (esAdmin) {
-                animalDao.update(animal.copy(
+                val updatedAnimal = animal.copy(
                     estadoInventario = EstadoInventario.VENDIDO,
                     fechaBaja = System.currentTimeMillis(),
                     tipoBaja = TipoBaja.VENTA,
                     fechaActualizacion = System.currentTimeMillis()
-                ))
+                )
+                animalDao.update(updatedAnimal)
+                
+                sincronizacionDao.insert(
+                    ColaSincronizacion(
+                        entidad = "ganado",
+                        idEntidad = updatedAnimal.numeroArete,
+                        operacion = "UPDATE",
+                        versionLocal = updatedAnimal.version,
+                        idDispositivo = idUsuario
+                    )
+                )
             }
 
             ResultadoOperacion.Ok
@@ -122,13 +168,23 @@ class VentaRepository(
             ventaDao.deleteDetallesByVenta(venta.idVenta)
             // Eliminar encabezado
             ventaDao.deleteVentaById(venta.idVenta)
+            
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "ventas",
+                    idEntidad = venta.idVenta,
+                    operacion = "DELETE",
+                    versionLocal = venta.version,
+                    idDispositivo = venta.idUsuarioRegistro
+                )
+            )
         } catch (e: Exception) {
             android.util.Log.e("VentaRepository", "Error eliminando jaula", e)
         }
     }
 
     /* ---------- Vaciar Jaula (PROC-17) ---------- */
-    suspend fun vaciarJaula(ventaId: Long) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    suspend fun vaciarJaula(ventaId: String) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             ventaDao.deleteDetallesByVenta(ventaId)
             actualizarTotalesVenta(ventaId)
@@ -141,6 +197,15 @@ class VentaRepository(
     suspend fun eliminarAnimalDeVenta(detalle: DetalleVenta) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             ventaDao.deleteDetalle(detalle)
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "detalle_venta",
+                    idEntidad = detalle.idDetalleVenta,
+                    operacion = "DELETE",
+                    versionLocal = 1,
+                    idDispositivo = "sistema" // o puedes pasarlo
+                )
+            )
             actualizarTotalesVenta(detalle.idVenta)
         } catch (e: Exception) {
             android.util.Log.e("VentaRepository", "Error eliminando animal de venta", e)
@@ -149,10 +214,11 @@ class VentaRepository(
 
     /* ---------- Agregar Animal a Venta/Jaula ---------- */
     suspend fun agregarAnimalAVenta(
-        ventaId: Long,
+        ventaId: String,
         arete: String,
         pesoSalida: Double,
-        montoCobro: Double
+        montoCobro: Double,
+        idUsuario: String
     ): ResultadoOperacion {
         val animal = animalDao.getByArete(arete) ?: return ResultadoOperacion.Error("Animal no encontrado")
         
@@ -187,6 +253,16 @@ class VentaRepository(
             subtotal = montoCobro
         )
         ventaDao.insertDetalle(detalle)
+        
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "detalle_venta",
+                idEntidad = detalle.idDetalleVenta,
+                operacion = "INSERT",
+                versionLocal = 1,
+                idDispositivo = idUsuario
+            )
+        )
 
         // 2. Actualizar el encabezado de la venta (Jaula)
         actualizarTotalesVenta(ventaId)
@@ -194,7 +270,7 @@ class VentaRepository(
         return ResultadoOperacion.Ok
     }
 
-    private suspend fun actualizarTotalesVenta(ventaId: Long) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    private suspend fun actualizarTotalesVenta(ventaId: String) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val detalles = ventaDao.getDetallesPorVentaOnce(ventaId)
             val venta = ventaDao.getVentaById(ventaId)
@@ -204,12 +280,23 @@ class VentaRepository(
                 val pesoTotal = detalles.sumOf { it.pesoSalida }
                 val montoTotal = detalles.sumOf { it.subtotal }
                 
-                ventaDao.updateVenta(venta.copy(
+                val updatedVenta = venta.copy(
                     totalCabezas = totalCabezas,
                     pesoTotal = pesoTotal,
                     montoTotal = montoTotal,
                     fechaActualizacion = System.currentTimeMillis()
-                ))
+                )
+                ventaDao.updateVenta(updatedVenta)
+                
+                sincronizacionDao.insert(
+                    ColaSincronizacion(
+                        entidad = "ventas",
+                        idEntidad = updatedVenta.idVenta,
+                        operacion = "UPDATE",
+                        versionLocal = updatedVenta.version,
+                        idDispositivo = updatedVenta.idUsuarioRegistro
+                    )
+                )
             }
         } catch (e: Exception) {
             android.util.Log.e("VentaRepository", "Error actualizando totales", e)
@@ -217,7 +304,7 @@ class VentaRepository(
     }
 
     /* ---------- Consolidar Venta (Cerrar Jaula / Enviar a Revisión) ---------- */
-    suspend fun consolidarVenta(ventaId: Long, idUsuario: Long, esAdmin: Boolean, deAprobaciones: Boolean = false): ResultadoOperacion = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    suspend fun consolidarVenta(ventaId: String, idUsuario: String, esAdmin: Boolean, deAprobaciones: Boolean = false): ResultadoOperacion = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val venta = ventaDao.getVentaById(ventaId) ?: return@withContext ResultadoOperacion.Error("Jaula no encontrada")
             val detalles = ventaDao.getDetallesPorVentaOnce(ventaId)
@@ -243,32 +330,65 @@ class VentaRepository(
                 }
 
                 // 1. Si es admin, aprueba de inmediato
-                ventaDao.updateVenta(venta.copy(
+                val updatedVenta = venta.copy(
                     estadoAprobacion = EstadoAprobacion.APROBADO,
                     finalizada = true,
                     idUsuarioAprobacion = idUsuario,
                     fechaAprobacion = System.currentTimeMillis(),
                     fechaActualizacion = System.currentTimeMillis()
-                ))
+                )
+                ventaDao.updateVenta(updatedVenta)
+                
+                sincronizacionDao.insert(
+                    ColaSincronizacion(
+                        entidad = "ventas",
+                        idEntidad = updatedVenta.idVenta,
+                        operacion = "UPDATE",
+                        versionLocal = updatedVenta.version,
+                        idDispositivo = idUsuario
+                    )
+                )
 
                 // 2. Marcar todos los animales como VENDIDOS en el inventario
                 detalles.forEach { detalle ->
                     val animal = animalDao.getByArete(detalle.numeroArete)
                     if (animal != null) {
-                        animalDao.update(animal.copy(
+                        val updatedAnimal = animal.copy(
                             estadoInventario = EstadoInventario.VENDIDO,
                             fechaBaja = System.currentTimeMillis(),
                             tipoBaja = TipoBaja.VENTA,
                             fechaActualizacion = System.currentTimeMillis()
-                        ))
+                        )
+                        animalDao.update(updatedAnimal)
+                        
+                        sincronizacionDao.insert(
+                            ColaSincronizacion(
+                                entidad = "ganado",
+                                idEntidad = updatedAnimal.numeroArete,
+                                operacion = "UPDATE",
+                                versionLocal = updatedAnimal.version,
+                                idDispositivo = idUsuario
+                            )
+                        )
                     }
                 }
             } else {
                 // 3. Si es empleado, solo marca como finalizada para revisión del admin
-                ventaDao.updateVenta(venta.copy(
+                val updatedVenta = venta.copy(
                     finalizada = true,
                     fechaActualizacion = System.currentTimeMillis()
-                ))
+                )
+                ventaDao.updateVenta(updatedVenta)
+                
+                sincronizacionDao.insert(
+                    ColaSincronizacion(
+                        entidad = "ventas",
+                        idEntidad = updatedVenta.idVenta,
+                        operacion = "UPDATE",
+                        versionLocal = updatedVenta.version,
+                        idDispositivo = idUsuario
+                    )
+                )
             }
 
             ResultadoOperacion.Ok
@@ -280,17 +400,35 @@ class VentaRepository(
 
     suspend fun rechazarVenta(venta: Venta) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         if (venta.modalidad == ModalidadVenta.INDIVIDUAL) {
-            // Si es individual, simplemente eliminamos el registro para que no aparezca más.
-            // Los animales siguen activos porque el proceso de baja oficial nunca se consolidó.
             ventaDao.deleteDetallesByVenta(venta.idVenta)
             ventaDao.deleteVentaById(venta.idVenta)
+            
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "ventas",
+                    idEntidad = venta.idVenta,
+                    operacion = "DELETE",
+                    versionLocal = venta.version,
+                    idDispositivo = venta.idUsuarioRegistro
+                )
+            )
         } else {
-            // Al rechazar una jaula, vuelve a estar "abierta" para el empleado
-            ventaDao.updateVenta(venta.copy(
+            val updatedVenta = venta.copy(
                 finalizada = false,
                 estadoAprobacion = EstadoAprobacion.PENDIENTE,
                 fechaActualizacion = System.currentTimeMillis()
-            ))
+            )
+            ventaDao.updateVenta(updatedVenta)
+            
+            sincronizacionDao.insert(
+                ColaSincronizacion(
+                    entidad = "ventas",
+                    idEntidad = updatedVenta.idVenta,
+                    operacion = "UPDATE",
+                    versionLocal = updatedVenta.version,
+                    idDispositivo = updatedVenta.idUsuarioRegistro
+                )
+            )
         }
     }
 
@@ -302,7 +440,26 @@ class VentaRepository(
 
     suspend fun actualizarVentaArchivada(venta: Venta, detalle: DetalleVenta): ResultadoOperacion = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         ventaDao.updateVenta(venta)
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "ventas",
+                idEntidad = venta.idVenta,
+                operacion = "UPDATE",
+                versionLocal = venta.version,
+                idDispositivo = venta.idUsuarioRegistro
+            )
+        )
+        
         ventaDao.updateDetalleVenta(detalle)
+        sincronizacionDao.insert(
+            ColaSincronizacion(
+                entidad = "detalle_venta",
+                idEntidad = detalle.idDetalleVenta,
+                operacion = "UPDATE",
+                versionLocal = 1,
+                idDispositivo = venta.idUsuarioRegistro
+            )
+        )
         actualizarTotalesVenta(venta.idVenta)
         ResultadoOperacion.Ok
     }

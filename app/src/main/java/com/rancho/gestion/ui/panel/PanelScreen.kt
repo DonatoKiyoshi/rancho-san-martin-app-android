@@ -275,7 +275,7 @@ private fun fechaDeHoy(): String {
 @Composable
 fun PanelPreview() {
     val dummyStats = PanelStats(120, 45.5, 70, 50, 1440000.0, 85000.0)
-    val dummyAnimal = Animal(numeroArete = "484101", color = "Negro", sexo = Sexo.MACHO, pesoEntrada = 450.0, precioCompra = 12000.0, proveedor = "P1", idUsuarioRegistro = 1, idRangoPeso = null)
+    val dummyAnimal = Animal(numeroArete = "484101", color = "Negro", sexo = Sexo.MACHO, pesoEntrada = 450.0, precioCompra = 12000.0, proveedor = "P1", idUsuarioRegistro = "1", idRangoPeso = null)
     val dummyEstado = EstadoEtapa(Etapa.ACOPIO, 45, true, "Alerta")
 
     MaterialTheme {

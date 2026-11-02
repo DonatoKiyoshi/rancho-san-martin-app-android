@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
         Auditoria::class,
         Configuracion::class
     ],
-    version = 9, // Incrementado para añadir tipo_arete
+    version = 10, // Incrementado a 10 para migración destructiva (Long -> String UUIDs)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -77,7 +77,6 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "rancho_final_v9.db"
                 )
-                .addMigrations(MIGRATION_7_8, MIGRATION_8_9)
                 .fallbackToDestructiveMigration()
                 .addCallback(SeedCallback())
                 .build().also { INSTANCE = it }
@@ -99,6 +98,8 @@ abstract class AppDatabase : RoomDatabase() {
             val adminPass = PasswordHasher.hash("RanchoSanMartin_a5rCNc!Q")
             
             val adminValues = ContentValues().apply {
+                val uuid = java.util.UUID.randomUUID().toString()
+                put("id_usuario", uuid) // NUEVO: UUID
                 put("nombre", "Administrador")
                 put("nombre_usuario", "admin")
                 put("password_hash", adminPass)
@@ -108,16 +109,19 @@ abstract class AppDatabase : RoomDatabase() {
                 put("fecha_actualizacion", ahora)
                 put("version", 1)
             }
-            val adminId = db.insert("usuarios", android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE, adminValues)
+            db.insert("usuarios", android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE, adminValues)
+            val adminId = adminValues.getAsString("id_usuario")
 
             // 2. Seed Rangos de Peso
             val r1 = ContentValues().apply {
+                put("id_rango_peso", java.util.UUID.randomUUID().toString()) // NUEVO: UUID
                 put("limite_inferior", 130.0); put("limite_superior", 220.0); put("nombre_rango", "Becerro")
                 put("estado", 1); put("fecha_creacion", ahora); put("fecha_actualizacion", ahora); put("version", 1)
             }
             db.insert("rangos_peso", android.database.sqlite.SQLiteDatabase.CONFLICT_IGNORE, r1)
 
             val r2 = ContentValues().apply {
+                put("id_rango_peso", java.util.UUID.randomUUID().toString())
                 put("limite_inferior", 221.0); put("limite_superior", 280.0); put("nombre_rango", "Añojo")
                 put("estado", 1); put("fecha_creacion", ahora); put("fecha_actualizacion", ahora); put("version", 1)
             }

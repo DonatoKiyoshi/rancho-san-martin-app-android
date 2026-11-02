@@ -787,8 +787,8 @@ fun DetalleAnimalScreenPreview() {
                 proveedor = "Rancho San Martín",
                 precioCompra = 15500.0,
                 pesoEntrada = 450.0,
-                idRangoPeso = 1L,
-                idUsuarioRegistro = 1L,
+                idRangoPeso = "1",
+                idUsuarioRegistro = "1",
                 fechaEntrada = System.currentTimeMillis() - (10 * 24 * 60 * 60 * 1000)
             ),
             ventaExtra = null,
@@ -815,24 +815,24 @@ fun DetalleAnimalVendidoPreview() {
             proveedor = "Proveedor X",
             precioCompra = 14000.0,
             pesoEntrada = 420.0,
-            idRangoPeso = 1L,
-            idUsuarioRegistro = 1L,
+            idRangoPeso = "1",
+            idUsuarioRegistro = "1",
             estadoInventario = EstadoInventario.VENDIDO,
             fechaBaja = System.currentTimeMillis(),
             tipoBaja = TipoBaja.VENTA
         )
         val venta = Venta(
-            idVenta = 1L,
+            idVenta = "1",
             comprador = "Cliente Fiel",
             modalidad = ModalidadVenta.INDIVIDUAL,
             montoTotal = 18000.0,
             totalCabezas = 1,
             pesoTotal = 480.0,
-            idUsuarioRegistro = 1L
+            idUsuarioRegistro = "1"
         )
         val detalle = DetalleVenta(
-            idDetalleVenta = 1L,
-            idVenta = 1L,
+            idDetalleVenta = "1",
+            idVenta = "1",
             numeroArete = animal.numeroArete,
             pesoSalida = 480.0,
             precioUnitario = 37.5,

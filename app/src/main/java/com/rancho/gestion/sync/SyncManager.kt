@@ -5,6 +5,7 @@ import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -26,14 +27,25 @@ object SyncManager {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        val request = PeriodicWorkRequestBuilder<SyncWorker>(30, TimeUnit.MINUTES)
+        val request = PeriodicWorkRequestBuilder<com.rancho.gestion.data.sync.SyncWorker>(15, TimeUnit.MINUTES)
             .setConstraints(constraints)
             .build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             WORK_SYNC,
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.UPDATE, // NUEVO: Obliga a Android a reemplazar el Worker viejo
             request
+        )
+        
+        // NUEVO: Lanzar una petición de una sola vez inmediatamente para que no haya que esperar 15 min en la primera prueba
+        val immediateRequest = OneTimeWorkRequestBuilder<com.rancho.gestion.data.sync.SyncWorker>()
+            .setConstraints(constraints)
+            .build()
+            
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            WORK_SYNC + "_immediate",
+            androidx.work.ExistingWorkPolicy.REPLACE,
+            immediateRequest
         )
     }
 
@@ -56,17 +68,8 @@ object SyncManager {
     }
 }
 
-class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result {
-        return try {
-            val db = AppDatabase.getInstance(applicationContext)
-            // Lógica de sincronización offline-to-cloud (PROC-05)
-            Result.success()
-        } catch (e: Exception) {
-            Result.retry()
-        }
-    }
-}
+// Eliminar el SyncWorker antiguo vacío
+
 
 class MaintenanceWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {

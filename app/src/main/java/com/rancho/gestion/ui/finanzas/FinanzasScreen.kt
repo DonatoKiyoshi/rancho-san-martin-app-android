@@ -798,7 +798,7 @@ fun FinanzasPreview() {
         otros = 5000.0
     )
     val dummyEgresos = listOf(
-        Egreso(idEgreso = 1, categoria = CategoriaEgreso.NOMINA, montoTotal = 5000.0, fechaEgreso = System.currentTimeMillis(), idUsuario = 1, descripcion = "Pago")
+        Egreso(idEgreso = "1", categoria = CategoriaEgreso.NOMINA, montoTotal = 5000.0, fechaEgreso = System.currentTimeMillis(), idUsuario = "1", descripcion = "Pago")
     )
     MaterialTheme {
         FinanzasContent(
