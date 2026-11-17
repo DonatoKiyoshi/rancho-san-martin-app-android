@@ -192,6 +192,25 @@ fun ReportesGanadoScreen(
     val detallesMap = remember(detallesVenta) { detallesVenta.associateBy { it.numeroArete } }
     val todosLosAnimales = remember(activos, archivados) { activos + archivados }
 
+    val availableYears = remember(todosLosAnimales) {
+        val cal = Calendar.getInstance()
+        val years = todosLosAnimales.flatMap { animal ->
+            val list = mutableListOf<Int>()
+            cal.timeInMillis = animal.fechaEntrada
+            list.add(cal.get(Calendar.YEAR))
+            animal.fechaBaja?.let { fecha ->
+                cal.timeInMillis = fecha
+                list.add(cal.get(Calendar.YEAR))
+            }
+            list
+        }.toSet()
+        if (years.isEmpty()) {
+            listOf(cal.get(Calendar.YEAR))
+        } else {
+            years.sortedDescending()
+        }
+    }
+
     val hayFiltrosActivos = remember(filtroFechas, tipoAreteFiltro, coloresFiltro, estadosFiltro, rangosPesoFiltroIds) {
         filtroFechas !is FiltroFechas.Ultimo ||
         (filtroFechas as FiltroFechas.Ultimo).periodo != Periodo.MENSUAL ||
@@ -329,16 +348,17 @@ fun ReportesGanadoScreen(
     )
 
     if (exportDialogVisible) {
+        val locale = remember { Locale.getDefault() }
         val sdf = SimpleDateFormat("ddMMM-yyyy", Locale.forLanguageTag("es-MX"))
         val filenameBase = "RanchoSanMartin_ReporteGanado_${sdf.format(Date(desde))}-${sdf.format(Date(hasta))}".replace(" ", "")
 
         val periodoTxtStr = "Del ${DateUtils.formatDay(desde)} al ${DateUtils.formatDay(hasta)}"
         val filtrosTxtStr = buildString {
-            append("tipo de arete: ${tipoAreteFiltro.lowercase(Locale.getDefault())}")
-            if (coloresFiltro.isNotEmpty()) append(", color: ${coloresFiltro.joinToString(", ").lowercase(Locale.getDefault())}") else append(", color: todos")
-            if (estadosFiltro.isNotEmpty()) append(", estado: ${estadosFiltro.joinToString(", ") { it.name.lowercase(Locale.getDefault()) }}") else append(", estado: todos")
+            append("tipo de arete: ${tipoAreteFiltro.lowercase(locale)}")
+            if (coloresFiltro.isNotEmpty()) append(", color: ${coloresFiltro.joinToString(", ").lowercase(locale)}") else append(", color: todos")
+            if (estadosFiltro.isNotEmpty()) append(", estado: ${estadosFiltro.joinToString(", ") { it.name.lowercase(locale) }}") else append(", estado: todos")
             if (rangosPesoFiltroIds.isNotEmpty()) {
-                val rNames = rangos.filter { it.idRangoPeso in rangosPesoFiltroIds }.joinToString(", ") { it.nombreRango.lowercase(Locale.getDefault()) }
+                val rNames = rangos.filter { it.idRangoPeso in rangosPesoFiltroIds }.joinToString(", ") { it.nombreRango.lowercase(locale) }
                 append(", rango de peso: $rNames")
             } else {
                 append(", rango de peso: todos")
@@ -431,10 +451,6 @@ fun ReportesGanadoScreen(
     }
 
     if (mostrarModalFiltros) {
-        val currCal = Calendar.getInstance()
-        val currentYear = currCal.get(Calendar.YEAR)
-        val availableYears = remember { (currentYear - 5..currentYear + 1).toList().reversed() }
-
         GanadoFilterDialog(
             currentFiltroFechas = filtroFechas,
             currentTipoArete = tipoAreteFiltro,
@@ -1117,10 +1133,10 @@ private fun KpiCard(
             translationY = translationYAnim * density
         },
         colors = CardDefaults.cardColors(
-            containerColor = if (isSecondary) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
         shape = RoundedCornerShape(14.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSecondary) 0.5.dp else 1.5.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -1690,7 +1706,7 @@ private fun GanadoFilterDialog(
             is FiltroFechas.EspecificoSemana -> currentFiltroFechas.anio
             is FiltroFechas.EspecificoMes -> currentFiltroFechas.anio
             is FiltroFechas.EspecificoAnio -> currentFiltroFechas.anio
-            else -> cal.get(Calendar.YEAR)
+            else -> if (availableYears.contains(cal.get(Calendar.YEAR))) cal.get(Calendar.YEAR) else availableYears.firstOrNull() ?: cal.get(Calendar.YEAR)
         }
     )}
     var selMes by remember { mutableStateOf(
@@ -1707,6 +1723,12 @@ private fun GanadoFilterDialog(
     var selSemana by remember { mutableStateOf(
         if (currentFiltroFechas is FiltroFechas.EspecificoSemana) currentFiltroFechas.semana else cal.get(Calendar.WEEK_OF_MONTH)
     )}
+
+    LaunchedEffect(availableYears) {
+        if (availableYears.isNotEmpty() && selAnio !in availableYears) {
+            selAnio = availableYears.first()
+        }
+    }
 
     val meses = listOf("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
     val semanas = listOf("Primera semana", "Segunda semana", "Tercera semana", "Cuarta semana", "Quinta semana")

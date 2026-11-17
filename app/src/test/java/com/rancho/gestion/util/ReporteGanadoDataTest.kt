@@ -19,9 +19,9 @@ class ReporteGanadoDataTest {
             proveedor = "Rancho San Martín",
             precioCompra = 12000.0,
             pesoEntrada = 200.0,
-            idRangoPeso = 1L,
+            idRangoPeso = "1",
             estadoInventario = EstadoInventario.ACTIVO,
-            idUsuarioRegistro = 1
+            idUsuarioRegistro = "1"
         ),
         Animal(
             numeroArete = "484000000000002",
@@ -31,9 +31,9 @@ class ReporteGanadoDataTest {
             proveedor = "Rancho San Martín",
             precioCompra = 15000.0,
             pesoEntrada = 300.0,
-            idRangoPeso = 2L,
+            idRangoPeso = "2",
             estadoInventario = EstadoInventario.VENDIDO,
-            idUsuarioRegistro = 1
+            idUsuarioRegistro = "1"
         ),
         Animal(
             numeroArete = "1001",
@@ -43,15 +43,15 @@ class ReporteGanadoDataTest {
             proveedor = "Proveedor B",
             precioCompra = 10000.0,
             pesoEntrada = 250.0,
-            idRangoPeso = 2L,
+            idRangoPeso = "2",
             estadoInventario = EstadoInventario.MUERTO,
-            idUsuarioRegistro = 1
+            idUsuarioRegistro = "1"
         )
     )
 
     private val sampleRangos = listOf(
-        RangoPeso(idRangoPeso = 1L, limiteInferior = 130.0, limiteSuperior = 220.0, nombreRango = "Becerro"),
-        RangoPeso(idRangoPeso = 2L, limiteInferior = 221.0, limiteSuperior = 350.0, nombreRango = "Añojo")
+        RangoPeso(idRangoPeso = "1", limiteInferior = 130.0, limiteSuperior = 220.0, nombreRango = "Becerro"),
+        RangoPeso(idRangoPeso = "2", limiteInferior = 221.0, limiteSuperior = 350.0, nombreRango = "Añojo")
     )
 
     @Test
@@ -79,8 +79,8 @@ class ReporteGanadoDataTest {
         assertEquals(1, hembras.cantidad)
 
         // Conteo por rango (1 Becerro [200kg], 2 Añojo [300kg, 250kg])
-        val becerro = stats.distribucionRangos.first { it.idRangoPeso == 1L }
-        val anojo = stats.distribucionRangos.first { it.idRangoPeso == 2L }
+        val becerro = stats.distribucionRangos.first { it.idRangoPeso == "1" }
+        val anojo = stats.distribucionRangos.first { it.idRangoPeso == "2" }
         assertEquals(1, becerro.cantidad)
         assertEquals(2, anojo.cantidad)
 

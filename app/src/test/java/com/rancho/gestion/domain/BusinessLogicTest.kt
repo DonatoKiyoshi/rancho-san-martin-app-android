@@ -17,8 +17,8 @@ import java.util.concurrent.TimeUnit
  */
 class ClasificadorPesoTest {
     private val rangos = listOf(
-        RangoPeso(idRangoPeso = 1L, limiteInferior = 130.0, limiteSuperior = 220.0, nombreRango = "R1"),
-        RangoPeso(idRangoPeso = 2L, limiteInferior = 221.0, limiteSuperior = 280.0, nombreRango = "R2")
+        RangoPeso(idRangoPeso = "1", limiteInferior = 130.0, limiteSuperior = 220.0, nombreRango = "R1"),
+        RangoPeso(idRangoPeso = "2", limiteInferior = 221.0, limiteSuperior = 280.0, nombreRango = "R2")
     )
 
     @Test

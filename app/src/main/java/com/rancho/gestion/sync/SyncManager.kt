@@ -49,6 +49,11 @@ object SyncManager {
         )
     }
 
+    fun sincronizarAhora(context: Context) {
+        val request = OneTimeWorkRequestBuilder<com.rancho.gestion.data.sync.SyncWorker>().build()
+        WorkManager.getInstance(context).enqueue(request)
+    }
+
     fun programarMantenimientoPeriodico(context: Context) {
         val request = PeriodicWorkRequestBuilder<MaintenanceWorker>(24, TimeUnit.HOURS).build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(

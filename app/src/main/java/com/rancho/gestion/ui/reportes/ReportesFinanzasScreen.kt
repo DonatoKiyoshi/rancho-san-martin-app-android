@@ -120,6 +120,20 @@ fun ReportesFinanzasScreen(container: AppContainer, onBack: () -> Unit) {
     }
 
     val egresos by container.finanzasRepository.porRango(desde, hasta).collectAsState(initial = emptyList())
+    val todosLosEgresos by container.finanzasRepository.porRango(0, Long.MAX_VALUE).collectAsState(initial = emptyList())
+
+    val availableYears = remember(todosLosEgresos) {
+        val cal = Calendar.getInstance()
+        val years = todosLosEgresos.map { egreso ->
+            cal.timeInMillis = egreso.fechaEgreso
+            cal.get(Calendar.YEAR)
+        }.toSet()
+        if (years.isEmpty()) {
+            listOf(cal.get(Calendar.YEAR))
+        } else {
+            years.sortedDescending()
+        }
+    }
 
     ReportesFinanzasContent(
         filtroFechas = filtroFechas,
@@ -233,10 +247,6 @@ fun ReportesFinanzasScreen(container: AppContainer, onBack: () -> Unit) {
     }
 
     if (mostrarFiltros) {
-        val currCal = Calendar.getInstance()
-        val currentYear = currCal.get(Calendar.YEAR)
-        val availableYears = remember { (currentYear - 5..currentYear + 1).toList().reversed() }
-
         FinanzasFilterDialog(
             currentFiltroFechas = filtroFechas,
             currentCategorias = categoriasFiltro,
@@ -974,7 +984,7 @@ private fun FinanzasFilterDialog(
             is FiltroFechas.EspecificoSemana -> currentFiltroFechas.anio
             is FiltroFechas.EspecificoMes -> currentFiltroFechas.anio
             is FiltroFechas.EspecificoAnio -> currentFiltroFechas.anio
-            else -> cal.get(Calendar.YEAR)
+            else -> if (availableYears.contains(cal.get(Calendar.YEAR))) cal.get(Calendar.YEAR) else availableYears.firstOrNull() ?: cal.get(Calendar.YEAR)
         }
     )}
     var selMes by remember { mutableStateOf(
@@ -991,6 +1001,27 @@ private fun FinanzasFilterDialog(
     var selSemana by remember { mutableStateOf(
         if (currentFiltroFechas is FiltroFechas.EspecificoSemana) currentFiltroFechas.semana else cal.get(Calendar.WEEK_OF_MONTH)
     )}
+
+    LaunchedEffect(availableYears) {
+        if (availableYears.isNotEmpty() && selAnio !in availableYears) {
+            selAnio = availableYears.first()
+        }
+    }
+
+    val meses = listOf("Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre")
+    val semanas = listOf("Primera semana", "Segunda semana", "Tercera semana", "Cuarta semana", "Quinta semana")
+
+    val diasEnMes = remember(selAnio, selMes) {
+        val c = Calendar.getInstance()
+        c.set(selAnio, selMes, 1)
+        c.getActualMaximum(Calendar.DAY_OF_MONTH)
+    }
+    if (selDia > diasEnMes) selDia = diasEnMes
+
+    var mesMenuAbierto by remember { mutableStateOf(false) }
+    var anioMenuAbierto by remember { mutableStateOf(false) }
+    var diaMenuAbierto by remember { mutableStateOf(false) }
+    var semanaMenuAbierto by remember { mutableStateOf(false) }
 
     var categorias by remember { mutableStateOf(currentCategorias) }
     var incluirDesc by remember { mutableStateOf(currentIncluirDescripcion) }
@@ -1019,16 +1050,133 @@ private fun FinanzasFilterDialog(
                 }
 
                 if (tipoConsulta == "Ultimo") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Periodo.entries.forEach { p ->
-                            FilterChip(
-                                selected = periodoUltimo == p,
-                                onClick = { periodoUltimo = p },
-                                label = { Text(p.name, fontSize = 11.sp) }
-                            )
+                    Column {
+                        Text("Periodo", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Periodo.entries.forEach { p ->
+                                FilterChip(
+                                    selected = periodoUltimo == p,
+                                    onClick = { periodoUltimo = p },
+                                    label = { Text(periodoLabel(p), fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Column {
+                        Text("Consultar por", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = tipoEspecifico == "Dia", onClick = { tipoEspecifico = "Dia" })
+                            Text("Día específico", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Dia" }, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = tipoEspecifico == "Semana", onClick = { tipoEspecifico = "Semana" })
+                            Text("Semana específica", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Semana" }, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = tipoEspecifico == "Mes", onClick = { tipoEspecifico = "Mes" })
+                            Text("Mes específico", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Mes" }, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = tipoEspecifico == "Anio", onClick = { tipoEspecifico = "Anio" })
+                            Text("Año completo", style = MaterialTheme.typography.bodySmall, modifier = Modifier.clickable { tipoEspecifico = "Anio" }, color = MaterialTheme.colorScheme.onSurface)
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ExposedDropdownMenuBox(
+                                expanded = anioMenuAbierto,
+                                onExpandedChange = { anioMenuAbierto = it },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                OutlinedTextField(
+                                    value = selAnio.toString(), onValueChange = {}, readOnly = true,
+                                    label = { Text("Año") },
+                                    modifier = Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = true),
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = anioMenuAbierto) },
+                                    textStyle = MaterialTheme.typography.bodySmall
+                                )
+                                ExposedDropdownMenu(expanded = anioMenuAbierto, onDismissRequest = { anioMenuAbierto = false }) {
+                                    availableYears.forEach { yr ->
+                                        DropdownMenuItem(text = { Text(yr.toString()) }, onClick = { selAnio = yr; anioMenuAbierto = false })
+                                    }
+                                }
+                            }
+                        }
+
+                        if (tipoEspecifico != "Anio") {
+                            Spacer(Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                ExposedDropdownMenuBox(
+                                    expanded = mesMenuAbierto,
+                                    onExpandedChange = { mesMenuAbierto = it },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    OutlinedTextField(
+                                        value = meses[selMes], onValueChange = {}, readOnly = true,
+                                        label = { Text("Mes") },
+                                        modifier = Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = true),
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = mesMenuAbierto) },
+                                        textStyle = MaterialTheme.typography.bodySmall
+                                    )
+                                    ExposedDropdownMenu(expanded = mesMenuAbierto, onDismissRequest = { mesMenuAbierto = false }) {
+                                        meses.forEachIndexed { i, m ->
+                                            DropdownMenuItem(text = { Text(m) }, onClick = { selMes = i; mesMenuAbierto = false })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (tipoEspecifico == "Dia") {
+                            Spacer(Modifier.height(6.dp))
+                            ExposedDropdownMenuBox(
+                                expanded = diaMenuAbierto,
+                                onExpandedChange = { diaMenuAbierto = it },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedTextField(
+                                    value = "Día $selDia", onValueChange = {}, readOnly = true,
+                                    label = { Text("Día") },
+                                    modifier = Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = true),
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = diaMenuAbierto) },
+                                    textStyle = MaterialTheme.typography.bodySmall
+                                )
+                                ExposedDropdownMenu(expanded = diaMenuAbierto, onDismissRequest = { diaMenuAbierto = false }) {
+                                    (1..diasEnMes).forEach { d ->
+                                        DropdownMenuItem(text = { Text("Día $d") }, onClick = { selDia = d; diaMenuAbierto = false })
+                                    }
+                                }
+                            }
+                        }
+
+                        if (tipoEspecifico == "Semana") {
+                            Spacer(Modifier.height(6.dp))
+                            ExposedDropdownMenuBox(
+                                expanded = semanaMenuAbierto,
+                                onExpandedChange = { semanaMenuAbierto = it },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                OutlinedTextField(
+                                    value = semanas.getOrElse(selSemana - 1) { "Semana $selSemana" }, onValueChange = {}, readOnly = true,
+                                    label = { Text("Semana") },
+                                    modifier = Modifier.menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = true),
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = semanaMenuAbierto) },
+                                    textStyle = MaterialTheme.typography.bodySmall
+                                )
+                                ExposedDropdownMenu(expanded = semanaMenuAbierto, onDismissRequest = { semanaMenuAbierto = false }) {
+                                    semanas.forEachIndexed { i, s ->
+                                        DropdownMenuItem(text = { Text(s) }, onClick = { selSemana = i + 1; semanaMenuAbierto = false })
+                                    }
+                                }
+                            }
                         }
                     }
                 }

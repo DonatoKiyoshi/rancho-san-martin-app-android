@@ -1,10 +1,12 @@
 package com.rancho.gestion.data.repository
 
+import android.content.Context
 import com.rancho.gestion.data.dao.AnimalDao
 import com.rancho.gestion.data.dao.MortalidadDao
 import com.rancho.gestion.data.dao.SincronizacionDao
 import com.rancho.gestion.data.dao.VentaDao
 import com.rancho.gestion.data.entities.*
+import com.rancho.gestion.sync.SyncManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -13,8 +15,10 @@ class VentaRepository(
     private val ventaDao: VentaDao,
     private val animalDao: AnimalDao,
     private val mortalidadDao: MortalidadDao,
-    private val sincronizacionDao: SincronizacionDao
+    private val sincronizacionDao: SincronizacionDao,
+    private val context: Context? = null
 ) {
+    private fun triggerSync() = context?.let { SyncManager.sincronizarAhora(it) }
     fun getVentas(): Flow<List<Venta>> = ventaDao.getAllVentas()
     fun getTodosLosDetalles(): Flow<List<DetalleVenta>> = ventaDao.getAllDetalles()
     fun getJaulasAbiertas(): Flow<List<Venta>> = ventaDao.getJaulasAbiertas()
@@ -44,6 +48,7 @@ class VentaRepository(
                 idDispositivo = idUsuario
             )
         )
+        triggerSync()
         return venta.idVenta
     }
 
@@ -154,6 +159,7 @@ class VentaRepository(
                 )
             }
 
+            triggerSync()
             ResultadoOperacion.Ok
         } catch (e: Exception) {
             android.util.Log.e("VentaRepository", "Error en realizarVentaIndividual", e)
@@ -391,6 +397,7 @@ class VentaRepository(
                 )
             }
 
+            triggerSync()
             ResultadoOperacion.Ok
         } catch (e: Exception) {
             android.util.Log.e("VentaRepository", "Error consolidando venta", e)

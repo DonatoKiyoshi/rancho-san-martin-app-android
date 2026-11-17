@@ -25,14 +25,16 @@ class AppContainer(context: Context) {
     
     val finanzasRepository = FinanzasRepository(
         egresoDao = database.egresoDao(),
-        sincronizacionDao = database.sincronizacionDao()
+        sincronizacionDao = database.sincronizacionDao(),
+        context = context
     )
     
     val ventaRepository = VentaRepository(
         ventaDao = database.ventaDao(),
         animalDao = database.animalDao(),
         mortalidadDao = database.mortalidadDao(),
-        sincronizacionDao = database.sincronizacionDao()
+        sincronizacionDao = database.sincronizacionDao(),
+        context = context
     )
     
     val configuracionRepository = ConfiguracionRepository(

@@ -21,8 +21,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import com.rancho.gestion.sync.SyncManager
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
@@ -67,6 +69,7 @@ fun BackTopBar(title: String, onBack: () -> Unit, actions: @Composable RowScope.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeTopBar(title: String, onHomeClick: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
+    val context = LocalContext.current
     var isSyncing by remember { mutableStateOf(false) }
     val infiniteTransition = rememberInfiniteTransition(label = "Sync")
     val angle by infiniteTransition.animateFloat(
@@ -87,7 +90,10 @@ fun HomeTopBar(title: String, onHomeClick: () -> Unit, actions: @Composable RowS
             }
         },
         actions = {
-            IconButton(onClick = { isSyncing = true }) {
+            IconButton(onClick = { 
+                isSyncing = true
+                SyncManager.sincronizarAhora(context)
+            }) {
                 if (isSyncing) {
                     Icon(
                         imageVector = Icons.Default.Sync,

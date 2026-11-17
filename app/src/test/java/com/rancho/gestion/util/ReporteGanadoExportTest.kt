@@ -25,9 +25,9 @@ class ReporteGanadoExportTest {
             proveedor = "Rancho San Martín",
             precioCompra = 12000.0,
             pesoEntrada = 200.0,
-            idRangoPeso = 1L,
+            idRangoPeso = "1",
             estadoInventario = EstadoInventario.ACTIVO,
-            idUsuarioRegistro = 1
+            idUsuarioRegistro = "1"
         ),
         Animal(
             numeroArete = "484000000000002",
@@ -37,15 +37,15 @@ class ReporteGanadoExportTest {
             proveedor = "Rancho San Martín",
             precioCompra = 15000.0,
             pesoEntrada = 300.0,
-            idRangoPeso = 2L,
+            idRangoPeso = "2",
             estadoInventario = EstadoInventario.VENDIDO,
-            idUsuarioRegistro = 1
+            idUsuarioRegistro = "1"
         )
     )
 
     private val sampleRangos = listOf(
-        RangoPeso(idRangoPeso = 1L, limiteInferior = 130.0, limiteSuperior = 220.0, nombreRango = "Becerro"),
-        RangoPeso(idRangoPeso = 2L, limiteInferior = 221.0, limiteSuperior = 350.0, nombreRango = "Añojo")
+        RangoPeso(idRangoPeso = "1", limiteInferior = 130.0, limiteSuperior = 220.0, nombreRango = "Becerro"),
+        RangoPeso(idRangoPeso = "2", limiteInferior = 221.0, limiteSuperior = 350.0, nombreRango = "Añojo")
     )
 
     private val sampleTablaRows = listOf(

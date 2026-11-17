@@ -6,11 +6,17 @@ import com.rancho.gestion.data.entities.CategoriaEgreso
 import com.rancho.gestion.data.entities.ColaSincronizacion
 import com.rancho.gestion.data.entities.Egreso
 import com.rancho.gestion.data.entities.NominaDetalle
+import android.content.Context
+import com.rancho.gestion.sync.SyncManager
 import com.rancho.gestion.util.DateUtils
 import kotlinx.coroutines.flow.Flow
 import java.util.Calendar
 
-class FinanzasRepository(private val egresoDao: EgresoDao, private val sincronizacionDao: SincronizacionDao) {
+class FinanzasRepository(
+    private val egresoDao: EgresoDao, 
+    private val sincronizacionDao: SincronizacionDao,
+    private val context: Context? = null
+) {
 
     fun porRango(desde: Long, hasta: Long): Flow<List<Egreso>> = egresoDao.getEgresosPorRango(desde, hasta)
     
@@ -70,6 +76,7 @@ class FinanzasRepository(private val egresoDao: EgresoDao, private val sincroniz
             )
         }
         
+        context?.let { SyncManager.sincronizarAhora(it) }
         return ResultadoOperacion.Ok
     }
 
@@ -85,6 +92,7 @@ class FinanzasRepository(private val egresoDao: EgresoDao, private val sincroniz
                     idDispositivo = egreso.idUsuario
                 )
             )
+            context?.let { SyncManager.sincronizarAhora(it) }
             ResultadoOperacion.Ok
         } catch (e: Exception) {
             ResultadoOperacion.Error("Error al eliminar egreso: ${e.message}")

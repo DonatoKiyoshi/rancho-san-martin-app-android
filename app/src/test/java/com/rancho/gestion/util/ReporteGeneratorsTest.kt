@@ -14,28 +14,28 @@ class ReporteGeneratorsTest {
 
     private val sampleEgresos = listOf(
         Egreso(
-            idEgreso = 1,
+            idEgreso = "1",
             fechaEgreso = System.currentTimeMillis(),
             categoria = CategoriaEgreso.NOMINA,
             descripcion = "Pago quincenal de vaqueros",
             montoTotal = 15000.0,
-            idUsuario = 1
+            idUsuario = "1"
         ),
         Egreso(
-            idEgreso = 2,
+            idEgreso = "2",
             fechaEgreso = System.currentTimeMillis() - 86400000L,
             categoria = CategoriaEgreso.ALIMENTO,
             descripcion = "Compra de pacas de alfalfa y suplementos concentrados",
             montoTotal = 8500.0,
-            idUsuario = 1
+            idUsuario = "1"
         ),
         Egreso(
-            idEgreso = 3,
+            idEgreso = "3",
             fechaEgreso = System.currentTimeMillis() - 172800000L,
             categoria = CategoriaEgreso.FARMACOS,
             descripcion = "Vacunas y desparasitantes",
             montoTotal = 3200.0,
-            idUsuario = 1
+            idUsuario = "1"
         )
     )
 

@@ -12,20 +12,20 @@ class ExcelGeneratorTest {
     fun testReporteFinancieroDataPreparacion() {
         val egresos = listOf(
             Egreso(
-                idEgreso = 1,
+                idEgreso = "1",
                 fechaEgreso = System.currentTimeMillis(),
                 categoria = CategoriaEgreso.NOMINA,
                 descripcion = "Pago semana",
                 montoTotal = 10000.0,
-                idUsuario = 1
+                idUsuario = "1"
             ),
             Egreso(
-                idEgreso = 2,
+                idEgreso = "2",
                 fechaEgreso = System.currentTimeMillis(),
                 categoria = CategoriaEgreso.ALIMENTO,
                 descripcion = "Compra alimento",
                 montoTotal = 5000.0,
-                idUsuario = 1
+                idUsuario = "1"
             )
         )
 

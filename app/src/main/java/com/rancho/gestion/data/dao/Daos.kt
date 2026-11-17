@@ -12,7 +12,7 @@ interface UsuarioDao {
     @Query("SELECT * FROM usuarios WHERE nombre_usuario = :username LIMIT 1")
     suspend fun getByUsername(username: String): Usuario?
 
-    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(usuario: Usuario)
 
     @Update
@@ -30,7 +30,7 @@ interface UsuarioDao {
 
 @Dao
 interface AnimalDao {
-    @Insert(onConflict = OnConflictStrategy.ABORT)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(animal: Animal)
 
     @Update
@@ -69,7 +69,7 @@ interface RangoPesoDao {
     @Query("SELECT * FROM rangos_peso ORDER BY limite_inferior ASC")
     fun getAll(): Flow<List<RangoPeso>>
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(rango: RangoPeso)
 
     @Delete
@@ -109,10 +109,10 @@ interface VentaDao {
     @Query("DELETE FROM ventas WHERE id_venta IN (SELECT id_venta FROM ventas WHERE modalidad = 'INDIVIDUAL' AND estado_aprobacion = 'PENDIENTE' AND id_venta IN (SELECT id_venta FROM detalle_venta WHERE numero_arete = :arete))")
     suspend fun eliminarVentasIndividualesPendientesDeAnimal(arete: String)
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVenta(venta: Venta)
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDetalle(detalle: DetalleVenta)
 
     @Query("DELETE FROM ventas WHERE id_venta = :ventaId")
@@ -142,10 +142,10 @@ interface VentaDao {
 
 @Dao
 interface EgresoDao {
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(egreso: Egreso)
 
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertNomina(nomina: NominaDetalle)
 
     @Delete
@@ -217,11 +217,14 @@ interface ConfiguracionDao {
 
 @Dao
 interface SincronizacionDao {
-    @Insert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(cola: ColaSincronizacion)
 
-    @Query("SELECT * FROM cola_sincronizacion WHERE estado = 'PENDIENTE' ORDER BY prioridad DESC, fecha_operacion ASC")
+    @Query("SELECT * FROM cola_sincronizacion WHERE estado IN ('PENDIENTE', 'ERROR', 'ENVIANDO') AND numero_intentos < 5 ORDER BY prioridad DESC, fecha_operacion ASC")
     suspend fun getPendientes(): List<ColaSincronizacion>
+
+    @Query("SELECT id_entidad FROM cola_sincronizacion WHERE estado IN ('PENDIENTE', 'ENVIANDO')")
+    suspend fun getIdsPendientes(): List<String>
 
     @Update
     suspend fun update(cola: ColaSincronizacion)
