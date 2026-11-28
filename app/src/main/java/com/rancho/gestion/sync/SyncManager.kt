@@ -11,6 +11,8 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.rancho.gestion.data.AppDatabase
 import com.rancho.gestion.data.entities.Animal
+import com.rancho.gestion.data.entities.ColaSincronizacion
+import com.rancho.gestion.data.entities.EstadoSincronizacion
 import com.rancho.gestion.domain.EtapaCalculator
 import com.rancho.gestion.util.DateUtils
 import com.rancho.gestion.util.NotificationHelper
@@ -81,7 +83,30 @@ class MaintenanceWorker(context: Context, params: WorkerParameters) : CoroutineW
         return try {
             val db = AppDatabase.getInstance(applicationContext)
             val limite = DateUtils.añosAtras(3)
+            
+            // 1. Obtener los IDs de los animales que van a ser purgados
+            val idsParaPurgar = db.animalDao().getAntiguosIds(limite)
+            
+            // 2. Registrar cada eliminación en la cola de sincronización para que se borren en Supabase
+            val syncDao = db.sincronizacionDao()
+            val ahora = System.currentTimeMillis()
+            idsParaPurgar.forEach { id ->
+                syncDao.insert(
+                    ColaSincronizacion(
+                        entidad = "ganado",
+                        idEntidad = id,
+                        operacion = "DELETE",
+                        estado = EstadoSincronizacion.PENDIENTE,
+                        versionLocal = 1,
+                        fechaOperacion = ahora,
+                        idDispositivo = "SYSTEM_MAINTENANCE"
+                    )
+                )
+            }
+            
+            // 3. Eliminar los registros de la base de datos local
             db.animalDao().purgarAntiguos(limite)
+            
             Result.success()
         } catch (e: Exception) {
             Result.retry()

@@ -22,6 +22,10 @@ class GanadoRepository(
     private val mortalidadDao: MortalidadDao,
     private val sincronizacionDao: SincronizacionDao
 ) {
+    private fun triggerSync() {
+        val syncRequest = OneTimeWorkRequestBuilder<com.rancho.gestion.data.sync.SyncWorker>().build()
+        WorkManager.getInstance(context).enqueue(syncRequest)
+    }
     /* ---------- Consultas reactivas ---------- */
     fun activos(): Flow<List<Animal>> = animalDao.getActivos()
     fun buscar(query: String): Flow<List<Animal>> = animalDao.buscarActivos(query)
@@ -101,8 +105,7 @@ class GanadoRepository(
         )
         
         // --- DESPERTAR AL WORKER INMEDIATAMENTE ---
-        val syncRequest = OneTimeWorkRequestBuilder<com.rancho.gestion.data.sync.SyncWorker>().build()
-        WorkManager.getInstance(context).enqueue(syncRequest)
+        triggerSync()
         
         ResultadoOperacion.Ok
     }
@@ -124,6 +127,7 @@ class GanadoRepository(
                 idDispositivo = idAdmin
             )
         )
+        triggerSync()
         return ResultadoOperacion.Ok
     }
 
@@ -139,6 +143,7 @@ class GanadoRepository(
                 idDispositivo = animal.idUsuarioRegistro
             )
         )
+        triggerSync()
     }
 
     suspend fun rechazarMortalidad(mortalidad: Mortalidad): Unit = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -153,6 +158,7 @@ class GanadoRepository(
                 idDispositivo = mortalidad.idUsuarioRegistro
             )
         )
+        triggerSync()
     }
 
     /* ---------- Registrar Muerte (CU-04) ---------- */
@@ -220,6 +226,7 @@ class GanadoRepository(
             )
         }
         
+        triggerSync()
         ResultadoOperacion.Ok
     }
 
@@ -268,6 +275,7 @@ class GanadoRepository(
             )
         )
 
+        triggerSync()
         return ResultadoOperacion.Ok
     }
 
@@ -287,6 +295,7 @@ class GanadoRepository(
                 idDispositivo = updatedAnimal.idUsuarioRegistro
             )
         )
+        triggerSync()
         return ResultadoOperacion.Ok
     }
 
@@ -302,6 +311,7 @@ class GanadoRepository(
                 idDispositivo = animal.idUsuarioRegistro
             )
         )
+        triggerSync()
     }
 
     suspend fun actualizarFoto(arete: String, path: String?) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -323,6 +333,7 @@ class GanadoRepository(
                     idDispositivo = updatedAnimal.idUsuarioRegistro
                 )
             )
+            triggerSync()
         }
     }
 
@@ -342,6 +353,7 @@ class GanadoRepository(
                 idDispositivo = mortalidad.idUsuarioRegistro
             )
         )
+        triggerSync()
         ResultadoOperacion.Ok
     }
 
@@ -359,6 +371,7 @@ class GanadoRepository(
                 idDispositivo = updatedAnimal.idUsuarioRegistro
             )
         )
+        triggerSync()
         return ResultadoOperacion.Ok
     }
 }

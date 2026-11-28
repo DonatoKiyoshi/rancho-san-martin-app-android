@@ -39,6 +39,9 @@ interface AnimalDao {
     @Delete
     suspend fun delete(animal: Animal)
 
+    @Query("SELECT * FROM ganado")
+    suspend fun getAllOnce(): List<Animal>
+
     @Query("SELECT * FROM ganado WHERE numero_arete = :arete LIMIT 1")
     suspend fun getByArete(arete: String): Animal?
 
@@ -60,6 +63,9 @@ interface AnimalDao {
     @Query("SELECT * FROM ganado WHERE estado_aprobacion = 'PENDIENTE' ORDER BY fecha_creacion DESC")
     fun getPendientesAprobacion(): Flow<List<Animal>>
 
+    @Query("SELECT numero_arete FROM ganado WHERE estado_inventario != 'ACTIVO' AND fecha_baja < :limite")
+    suspend fun getAntiguosIds(limite: Long): List<String>
+
     @Query("DELETE FROM ganado WHERE estado_inventario != 'ACTIVO' AND fecha_baja < :limite")
     suspend fun purgarAntiguos(limite: Long): Int
 }
@@ -68,6 +74,12 @@ interface AnimalDao {
 interface RangoPesoDao {
     @Query("SELECT * FROM rangos_peso ORDER BY limite_inferior ASC")
     fun getAll(): Flow<List<RangoPeso>>
+
+    @Query("SELECT * FROM rangos_peso")
+    suspend fun getAllOnce(): List<RangoPeso>
+
+    @Query("SELECT * FROM rangos_peso WHERE id_rango_peso = :id LIMIT 1")
+    suspend fun getById(id: String): RangoPeso?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(rango: RangoPeso)
@@ -82,8 +94,17 @@ interface VentaDao {
     @Query("SELECT * FROM ventas ORDER BY fecha_venta DESC")
     fun getAllVentas(): Flow<List<Venta>>
 
+    @Query("SELECT * FROM ventas")
+    suspend fun getAllVentasOnce(): List<Venta>
+
     @Query("SELECT * FROM detalle_venta")
     fun getAllDetalles(): Flow<List<DetalleVenta>>
+
+    @Query("SELECT * FROM detalle_venta")
+    suspend fun getAllDetallesOnce(): List<DetalleVenta>
+
+    @Query("SELECT * FROM detalle_venta WHERE id_detalle_venta = :id LIMIT 1")
+    suspend fun getDetalleById(id: String): DetalleVenta?
 
     @Query("SELECT * FROM ventas WHERE id_venta = :id LIMIT 1")
     suspend fun getVentaById(id: String): Venta?
@@ -151,6 +172,18 @@ interface EgresoDao {
     @Delete
     suspend fun delete(egreso: Egreso)
 
+    @Query("SELECT * FROM egresos")
+    suspend fun getAllOnce(): List<Egreso>
+
+    @Query("SELECT * FROM nomina")
+    suspend fun getAllNominaOnce(): List<NominaDetalle>
+
+    @Query("SELECT * FROM nomina WHERE id_nomina = :id LIMIT 1")
+    suspend fun getNominaById(id: String): NominaDetalle?
+
+    @Delete
+    suspend fun deleteNomina(nomina: NominaDetalle)
+
     @Query("SELECT * FROM egresos WHERE id_egreso = :id LIMIT 1")
     suspend fun getEgresoById(id: String): Egreso?
 
@@ -174,6 +207,9 @@ interface EgresoDao {
 interface MortalidadDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(mortalidad: Mortalidad)
+
+    @Query("SELECT * FROM mortalidad")
+    suspend fun getAllOnce(): List<Mortalidad>
 
     @Query("SELECT * FROM mortalidad WHERE numero_arete = :arete AND estado_aprobacion = 'PENDIENTE' LIMIT 1")
     suspend fun getMortalidadPendienteDeAnimal(arete: String): Mortalidad?
@@ -223,7 +259,7 @@ interface SincronizacionDao {
     @Query("SELECT * FROM cola_sincronizacion WHERE estado IN ('PENDIENTE', 'ERROR', 'ENVIANDO') AND numero_intentos < 5 ORDER BY prioridad DESC, fecha_operacion ASC")
     suspend fun getPendientes(): List<ColaSincronizacion>
 
-    @Query("SELECT id_entidad FROM cola_sincronizacion WHERE estado IN ('PENDIENTE', 'ENVIANDO')")
+    @Query("SELECT id_entidad FROM cola_sincronizacion WHERE estado IN ('PENDIENTE', 'ENVIANDO', 'ERROR') AND numero_intentos < 5")
     suspend fun getIdsPendientes(): List<String>
 
     @Update

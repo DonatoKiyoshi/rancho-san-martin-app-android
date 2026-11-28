@@ -76,6 +76,21 @@ class BiometricAuthManager(private val context: Context) {
     }
 
     /**
+     * Guarda las credenciales del usuario de forma cifrada en el dispositivo.
+     */
+    fun saveUser(username: String, name: String, passwordHash: String) {
+        try {
+            prefs.edit()
+                .putString("saved_username", username.trim().lowercase())
+                .putString("saved_name", name.trim())
+                .putString("saved_pass_hash", passwordHash)
+                .apply()
+        } catch (e: Exception) {
+            Log.e(tag, "Error guardando usuario", e)
+        }
+    }
+
+    /**
      * Guarda las credenciales del usuario de forma cifrada en el dispositivo y activa la biometría.
      */
     fun saveCredentials(username: String, passwordHash: String) {
@@ -88,6 +103,20 @@ class BiometricAuthManager(private val context: Context) {
                 .apply()
         } catch (e: Exception) {
             Log.e(tag, "Error guardando credenciales biométricas", e)
+        }
+    }
+
+    /**
+     * Activa la biometría para el usuario guardado.
+     */
+    fun enableBiometric() {
+        try {
+            prefs.edit()
+                .putBoolean("biometric_enabled", true)
+                .putBoolean("has_asked_biometric", true)
+                .apply()
+        } catch (e: Exception) {
+            Log.e(tag, "Error habilitando biometría", e)
         }
     }
 
@@ -112,6 +141,13 @@ class BiometricAuthManager(private val context: Context) {
         null
     }
 
+    fun getSavedName(): String? = try {
+        prefs.getString("saved_name", null)
+    } catch (e: Exception) {
+        Log.e(tag, "Error leyendo saved_name", e)
+        null
+    }
+
     fun getSavedPasswordHash(): String? = try {
         prefs.getString("saved_pass_hash", null)
     } catch (e: Exception) {
@@ -126,8 +162,10 @@ class BiometricAuthManager(private val context: Context) {
         try {
             prefs.edit()
                 .remove("saved_username")
+                .remove("saved_name")
                 .remove("saved_pass_hash")
                 .putBoolean("biometric_enabled", false)
+                .putBoolean("has_asked_biometric", false)
                 .apply()
         } catch (e: Exception) {
             Log.e(tag, "Error limpiando credenciales biométricas", e)

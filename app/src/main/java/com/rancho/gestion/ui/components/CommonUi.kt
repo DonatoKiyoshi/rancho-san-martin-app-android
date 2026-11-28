@@ -10,7 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material3.*
@@ -86,7 +86,7 @@ fun HomeTopBar(title: String, onHomeClick: () -> Unit, actions: @Composable RowS
         title = { Text(title, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground) },
         navigationIcon = {
             IconButton(onClick = onHomeClick) {
-                Icon(Icons.Default.Home, contentDescription = "Menú", tint = MaterialTheme.colorScheme.onBackground)
+                Icon(Icons.Default.Menu, contentDescription = "Menú", tint = MaterialTheme.colorScheme.onBackground)
             }
         },
         actions = {

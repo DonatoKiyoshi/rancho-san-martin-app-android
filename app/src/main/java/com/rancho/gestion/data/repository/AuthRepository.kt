@@ -1,13 +1,20 @@
 package com.rancho.gestion.data.repository
 
+import android.content.Context
 import com.rancho.gestion.data.dao.SincronizacionDao
 import com.rancho.gestion.data.dao.UsuarioDao
 import com.rancho.gestion.data.entities.ColaSincronizacion
 import com.rancho.gestion.data.entities.Usuario
+import com.rancho.gestion.sync.SyncManager
 import com.rancho.gestion.util.PasswordHasher
 import kotlinx.coroutines.flow.Flow
 
-class AuthRepository(private val usuarioDao: UsuarioDao, private val sincronizacionDao: SincronizacionDao) {
+class AuthRepository(
+    private val usuarioDao: UsuarioDao,
+    private val sincronizacionDao: SincronizacionDao,
+    private val context: Context? = null
+) {
+    private fun triggerSync() = context?.let { SyncManager.sincronizarAhora(it) }
 
     suspend fun login(username: String, password: String): Usuario? {
         val userClean = username.trim().lowercase()
@@ -44,6 +51,7 @@ class AuthRepository(private val usuarioDao: UsuarioDao, private val sincronizac
                 idDispositivo = updatedUsuario.idUsuario
             )
         )
+        triggerSync()
         return true
     }
 
@@ -66,9 +74,10 @@ class AuthRepository(private val usuarioDao: UsuarioDao, private val sincronizac
                 idEntidad = userToInsert.idUsuario,
                 operacion = "INSERT",
                 versionLocal = userToInsert.version,
-                idDispositivo = "sistema" // o puedes usar el admin id
+                idDispositivo = "sistema"
             )
         )
+        triggerSync()
     }
 
     suspend fun existeUsuario(username: String): Boolean = usuarioDao.getByUsername(username.trim().lowercase()) != null
@@ -87,6 +96,7 @@ class AuthRepository(private val usuarioDao: UsuarioDao, private val sincronizac
                 idDispositivo = updatedUsuario.idUsuario
             )
         )
+        triggerSync()
     }
 
     suspend fun eliminarUsuario(usuario: Usuario) {
@@ -101,6 +111,7 @@ class AuthRepository(private val usuarioDao: UsuarioDao, private val sincronizac
                 idDispositivo = "sistema"
             )
         )
+        triggerSync()
     }
 
     suspend fun asegurarAdmin() {
@@ -129,7 +140,6 @@ class AuthRepository(private val usuarioDao: UsuarioDao, private val sincronizac
                 )
             )
         } else {
-            // Si ya existe, nos aseguramos de que tenga la contraseña correcta
             val adminPrincipal = admins.first()
             if (!PasswordHasher.matches(nuevaContrasenaDefault, adminPrincipal.passwordHash)) {
                 val updatedAdmin = adminPrincipal.copy(
@@ -149,7 +159,6 @@ class AuthRepository(private val usuarioDao: UsuarioDao, private val sincronizac
                     )
                 )
             }
-            // Eliminar duplicados si los hubiera
             if (admins.size > 1) {
                 admins.drop(1).forEach { 
                     usuarioDao.delete(it)
@@ -166,7 +175,6 @@ class AuthRepository(private val usuarioDao: UsuarioDao, private val sincronizac
             }
         }
 
-        // Ya no aseguramos el usuario EMPLEADO por defecto (RF-FIX)
         val empleados = todosLosUsuarios.filter { it.nombreUsuario.trim().lowercase() == "empleado" }
         if (empleados.isNotEmpty()) {
             empleados.forEach { usuarioDao.delete(it) }

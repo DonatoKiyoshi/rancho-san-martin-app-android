@@ -3,6 +3,7 @@ package com.rancho.gestion.ui.configuracion
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -23,6 +24,8 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -221,26 +224,87 @@ private fun ConfiguracionContent(
                 ) {
                     Column(Modifier.padding(top = 12.dp)) {
                         SectionCard {
-                            Text("Configuración de Rangos", fontWeight = FontWeight.Bold, color = RanchoPrimary)
-                            Spacer(Modifier.height(14.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(RanchoPrimary),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center,
+                                        modifier = Modifier.offset(y = 2.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(12.dp)
+                                                .height(4.dp)
+                                                .border(1.5.dp, Color.White, RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .width(24.dp)
+                                                .height(18.dp)
+                                                .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp, topStart = 2.dp, topEnd = 2.dp))
+                                                .background(Color.White),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("kg", color = RanchoPrimary, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold)
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Box(modifier = Modifier.width(1.dp).height(32.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = "Configuración de Rangos",
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            
+                            Spacer(Modifier.height(8.dp))
                             rangos.forEach { rango ->
                                 Row(
-                                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Text("${rango.nombreRango}: ${rango.limiteInferior.toInt()} a ${rango.limiteSuperior.toInt()} kg", style = MaterialTheme.typography.bodyMedium)
-                                    IconButton(
-                                        onClick = { rangoAEliminar = rango },
-                                        modifier = Modifier.size(24.dp)
+                                    Text(
+                                        text = "${rango.nombreRango}: ${rango.limiteInferior.toInt()} a ${rango.limiteSuperior.toInt()} kg",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.errorContainer)
+                                            .clickable { rangoAEliminar = rango },
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Icons.Default.Close, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Eliminar",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(16.dp)
+                                        )
                                     }
                                 }
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             }
 
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(12.dp))
                             OutlinedTextField(
                                 value = nombreRango,
                                 onValueChange = { input ->
@@ -251,7 +315,17 @@ private fun ConfiguracionContent(
                                     if (filtered.length <= 20) nombreRango = filtered
                                 },
                                 label = { Text("Nombre (ej. Becerro)") },
+                                leadingIcon = { 
+                                    Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) 
+                                },
                                 singleLine = true,
+                                shape = RoundedCornerShape(16.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                    focusedBorderColor = RanchoPrimary,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface
+                                ),
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(Modifier.height(8.dp))
@@ -264,13 +338,23 @@ private fun ConfiguracionContent(
                                         if (num <= 1000) nuevoMin = digits
                                     },
                                     label = { Text("Min") },
+                                    leadingIcon = { 
+                                        Icon(Icons.Default.Calculate, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) 
+                                    },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                        focusedBorderColor = RanchoPrimary,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface
+                                    ),
                                     modifier = Modifier.weight(1f)
                                 )
-                                Spacer(Modifier.width(8.dp))
-                                Text("a")
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(12.dp))
+                                Text("a", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.width(12.dp))
                                 OutlinedTextField(
                                     value = nuevoMax,
                                     onValueChange = { input ->
@@ -279,8 +363,18 @@ private fun ConfiguracionContent(
                                         if (num <= 1000) nuevoMax = digits
                                     },
                                     label = { Text("Max") },
+                                    leadingIcon = { 
+                                        Icon(Icons.Default.Calculate, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) 
+                                    },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                        focusedBorderColor = RanchoPrimary,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface
+                                    ),
                                     modifier = Modifier.weight(1f)
                                 )
                             }
@@ -288,7 +382,7 @@ private fun ConfiguracionContent(
                                 Spacer(Modifier.height(6.dp))
                                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                             }
-                            Spacer(Modifier.height(14.dp))
+                            Spacer(Modifier.height(16.dp))
                             Button(
                                 onClick = {
                                     val min = nuevoMin.toDoubleOrNull()
@@ -321,12 +415,13 @@ private fun ConfiguracionContent(
                                         }
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp)
+                                modifier = Modifier.fillMaxWidth().height(50.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = RanchoPrimary)
                             ) {
-                                Icon(Icons.Default.Add, contentDescription = null)
-                                Spacer(Modifier.width(4.dp))
-                                Text("Agregar Rango")
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Agregar Rango", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             }
                         }
                     }

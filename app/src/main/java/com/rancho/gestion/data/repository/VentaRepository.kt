@@ -184,6 +184,7 @@ class VentaRepository(
                     idDispositivo = venta.idUsuarioRegistro
                 )
             )
+            triggerSync()
         } catch (e: Exception) {
             android.util.Log.e("VentaRepository", "Error eliminando jaula", e)
         }
@@ -192,8 +193,21 @@ class VentaRepository(
     /* ---------- Vaciar Jaula (PROC-17) ---------- */
     suspend fun vaciarJaula(ventaId: String) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
+            val detalles = ventaDao.getDetallesPorVentaOnce(ventaId)
+            detalles.forEach { detalle ->
+                sincronizacionDao.insert(
+                    ColaSincronizacion(
+                        entidad = "detalle_venta",
+                        idEntidad = detalle.idDetalleVenta,
+                        operacion = "DELETE",
+                        versionLocal = 1,
+                        idDispositivo = "sistema"
+                    )
+                )
+            }
             ventaDao.deleteDetallesByVenta(ventaId)
             actualizarTotalesVenta(ventaId)
+            triggerSync()
         } catch (e: Exception) {
             android.util.Log.e("VentaRepository", "Error vaciando jaula", e)
         }
@@ -213,6 +227,7 @@ class VentaRepository(
                 )
             )
             actualizarTotalesVenta(detalle.idVenta)
+            triggerSync()
         } catch (e: Exception) {
             android.util.Log.e("VentaRepository", "Error eliminando animal de venta", e)
         }
@@ -272,6 +287,7 @@ class VentaRepository(
 
         // 2. Actualizar el encabezado de la venta (Jaula)
         actualizarTotalesVenta(ventaId)
+        triggerSync()
 
         return ResultadoOperacion.Ok
     }
@@ -437,6 +453,7 @@ class VentaRepository(
                 )
             )
         }
+        triggerSync()
     }
 
     suspend fun getDetalleVenta(arete: String): Pair<Venta, DetalleVenta>? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -468,6 +485,7 @@ class VentaRepository(
             )
         )
         actualizarTotalesVenta(venta.idVenta)
+        triggerSync()
         ResultadoOperacion.Ok
     }
 

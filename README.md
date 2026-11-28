@@ -204,16 +204,7 @@ RanchoApp/
 
 ---
 
-## 👤 Usuarios de Prueba
 
-La base de datos se precarga automáticamente en el primer inicio con dos usuarios por defecto:
-
-| Usuario | Contraseña | Rol | Accesos y Permisos |
-|---------|------------|-----|--------------------|
-| `admin` | `admin123` | **Administrador** | Acceso total: Gestión de usuarios, rangos de peso, bandeja de aprobaciones, reportes, exportaciones y eliminación. |
-| `empleado` | `empleado123` | **Empleado** | Registro de ganado, registros de venta y mortalidad, registro de egresos. Los registros quedan pendientes de aprobación por el admin. |
-
----
 
 ## 🧪 Pruebas Unitarias
 
@@ -229,4 +220,14 @@ O bien, en Android Studio: Clic derecho sobre `app/src/test/java/com/rancho/gest
 
 ## 📌 Estado de la Sincronización Cloud
 
-La aplicación es 100% operativa en modo local. La infraestructura para la sincronización con la nube está completamente estructurada en `sync/SyncWorker.kt`. Al seleccionar un proveedor Cloud (Firebase, AWS, o una API REST propia), únicamente se requiere implementar la llamada HTTP/SDK en el método `doWork()` de `SyncWorker`.
+La aplicación opera bajo un modelo **Offline-First**, siendo 100% funcional sin conexión a internet. Toda la información se guarda primero en SQLite (Room) localmente.
+
+El motor de sincronización (`sync/SyncWorker.kt`) ya está completamente integrado y conectado a un backend de **Supabase (PostgreSQL + Storage)** mediante su API REST utilizando Retrofit:
+*   **Subida (PUSH):** Los cambios locales se encolan y suben a la nube. Si incluyen fotos, estas se suben primero al *Storage Bucket* y luego se inserta la ruta en la base de datos.
+*   **Descarga (PULL) y Reconciliación:** El sistema descarga los datos de la nube e ignora inteligentemente aquellos registros que el usuario esté modificando offline para no sobreescribir su trabajo local.
+*   **Gestión de Ciclo de Vida:** Incluye un mantenimiento automatizado para purgar registros de más de 3 años, garantizando que el comando de eliminación se propague desde la base local hacia Supabase para evitar datos *zombies*.
+
+
+Para obetener infomacion a detalle sobre el funcionamiento de la base de datos y su sincronizacion consultar los archivos:
+* app/src/main/java/com/rancho/gestion/data/**README_DB.md**
+* app/src/main/java/com/rancho/gestion/sync/**README_SYNC.md**

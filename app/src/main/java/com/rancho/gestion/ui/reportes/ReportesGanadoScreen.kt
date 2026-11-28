@@ -737,13 +737,14 @@ private fun ReportesGanadoContent(
                         ) {
                             Text(
                                 text = "Resumen del inventario",
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
+                            Spacer(Modifier.height(4.dp))
                             Text(
                                 text = "Visualiza el estado, peso, distribución y composición analítica del hato.",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -1029,9 +1030,9 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats, isTabActive: B
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             KpiCard(
                 title = "Total Animales",
                 value = "${stats.totalAnimales}",
@@ -1054,7 +1055,7 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats, isTabActive: B
             )
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             KpiCard(
                 title = "Peso Promedio",
                 value = "${String.format(locale, "%,.1f", stats.pesoPromedio)} kg",
@@ -1077,7 +1078,7 @@ private fun IndicadoresPrincipalesGrid(stats: ReporteGanadoStats, isTabActive: B
             )
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             KpiCard(
                 title = "Vendidos",
                 value = "${stats.totalVendidos}",
@@ -1135,10 +1136,10 @@ private fun KpiCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1146,30 +1147,30 @@ private fun KpiCard(
             ) {
                 Text(
                     text = title,
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Box(
                     modifier = Modifier
-                        .size(26.dp)
+                        .size(32.dp)
                         .background(accentColor.copy(alpha = 0.15f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(15.dp))
+                    Icon(icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
                 }
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = value,
-                fontSize = 17.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = subtitle,
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -1201,13 +1202,13 @@ private fun GraficoDistribucionRangoPeso(stats: ReporteGanadoStats, isTabActive:
                 translationY = cardTranslationY * density
             },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.BarChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Default.BarChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(12.dp))
                 Text(
                     text = "Distribución por Rango de Peso",
                     style = MaterialTheme.typography.titleMedium,
@@ -1215,10 +1216,10 @@ private fun GraficoDistribucionRangoPeso(stats: ReporteGanadoStats, isTabActive:
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(18.dp))
 
             if (stats.distribucionRangos.isEmpty()) {
-                Text("No hay rangos de peso configurados", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("No hay rangos de peso configurados", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 stats.distribucionRangos.forEachIndexed { idx, item ->
                     key(item.idRangoPeso ?: item.nombreRango) {
@@ -1255,7 +1256,7 @@ private fun RangoBarItem(item: RangoStat, index: Int = 0, isTabActive: Boolean =
         label = "rangoTextAlpha"
     )
 
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+    Column(modifier = Modifier.padding(vertical = 8.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1264,22 +1265,22 @@ private fun RangoBarItem(item: RangoStat, index: Int = 0, isTabActive: Boolean =
         ) {
             Text(
                 text = item.nombreRango,
-                fontSize = 12.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = if (item.idRangoPeso == null) Color(0xFFF87171) else MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = "${item.cantidad} cabezas (${String.format(locale, "%.1f", item.porcentaje)}%)",
-                fontSize = 12.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(12.dp)
+                .height(16.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
         ) {
@@ -1343,22 +1344,22 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats, isTabActiv
                 translationY = cardTranslationY * density
             },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.PieChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Estado", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Icon(Icons.Default.PieChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Estado", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
             Box(
-                modifier = Modifier.size(110.dp),
+                modifier = Modifier.size(130.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
@@ -1374,7 +1375,7 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats, isTabActiv
                                     startAngle = startAngle,
                                     sweepAngle = sweepAngle,
                                     useCenter = false,
-                                    style = Stroke(width = 18.dp.toPx(), cap = StrokeCap.Butt)
+                                    style = Stroke(width = 22.dp.toPx(), cap = StrokeCap.Butt)
                                 )
                                 startAngle += sweepAngle
                             }
@@ -1385,7 +1386,7 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats, isTabActiv
                             startAngle = 0f,
                             sweepAngle = 360f,
                             useCenter = false,
-                            style = Stroke(width = 18.dp.toPx())
+                            style = Stroke(width = 22.dp.toPx())
                         )
                     }
                 }
@@ -1394,27 +1395,27 @@ private fun GraficoDistribucionEstadoDonut(stats: ReporteGanadoStats, isTabActiv
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.graphicsLayer { alpha = centerAlpha }
                 ) {
-                    Text(text = "${stats.totalAnimales}", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
-                    Text(text = "Total", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(text = "${stats.totalAnimales}", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = "Total", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(14.dp))
 
             val locale = remember { Locale.getDefault() }
             Column(modifier = Modifier.graphicsLayer { alpha = legendAlpha }) {
                 stats.distribucionEstado.forEach { item ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(8.dp).background(item.color, CircleShape))
+                            Box(modifier = Modifier.size(10.dp).background(item.color, CircleShape))
                             Spacer(Modifier.width(6.dp))
-                            Text(item.label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
+                            Text(item.label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                         }
-                        Text("${item.cantidad} (${String.format(locale, "%.0f", item.porcentaje)}%)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("${item.cantidad} (${String.format(locale, "%.0f", item.porcentaje)}%)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
@@ -1446,24 +1447,24 @@ private fun GraficoDistribucionSexoBars(stats: ReporteGanadoStats, isTabActive: 
                 translationY = cardTranslationY * density
             },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.BarChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Sexo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Icon(Icons.Default.BarChart, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Sexo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(110.dp),
+                    .height(130.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.Bottom
             ) {
@@ -1501,20 +1502,20 @@ private fun SexoBarItem(item: SexoStat, index: Int = 0, isTabActive: Boolean = t
     ) {
         Text(
             text = "${item.cantidad}",
-            fontSize = 11.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.graphicsLayer { alpha = textAlpha }
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Box(
             modifier = Modifier
-                .width(32.dp)
-                .height(if (item.cantidad == 0) 0.dp else (80 * barProgress.coerceIn(0f, 1f)).dp)
+                .width(40.dp)
+                .height(if (item.cantidad == 0) 0.dp else (100 * barProgress.coerceIn(0f, 1f)).dp)
                 .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
                 .background(item.color)
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(6.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.graphicsLayer { alpha = textAlpha }
@@ -1523,10 +1524,10 @@ private fun SexoBarItem(item: SexoStat, index: Int = 0, isTabActive: Boolean = t
                 if (item.sexo == Sexo.MACHO) Icons.Default.Male else Icons.Default.Female,
                 contentDescription = null,
                 tint = item.color,
-                modifier = Modifier.size(12.dp)
+                modifier = Modifier.size(16.dp)
             )
-            Spacer(Modifier.width(2.dp))
-            Text(item.label, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.width(4.dp))
+            Text(item.label, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
@@ -1556,19 +1557,19 @@ private fun ResumenTipoAreteSection(stats: ReporteGanadoStats, isTabActive: Bool
                 translationY = cardTranslationY * density
             },
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Text(
                 text = "Resumen por Tipo de Arete",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 stats.distribucionTipoArete.forEachIndexed { idx, item ->
                     TipoAreteBarItem(
                         item = item,
@@ -1621,12 +1622,12 @@ private fun TipoAreteBarItem(
             translationY = itemTranslationY * density
         },
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(16.dp)
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 item.label,
-                fontSize = 11.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.graphicsLayer { alpha = textAlpha }
@@ -1634,7 +1635,7 @@ private fun TipoAreteBarItem(
             Spacer(Modifier.height(4.dp))
             Text(
                 "${item.cantidad} cabezas",
-                fontSize = 16.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.graphicsLayer { alpha = textAlpha }
@@ -1642,15 +1643,15 @@ private fun TipoAreteBarItem(
             Spacer(Modifier.height(2.dp))
             Text(
                 "${String.format(locale, "%.1f", item.porcentaje)}% del total",
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.graphicsLayer { alpha = textAlpha }
             )
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp)
+                    .height(8.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
             ) {
